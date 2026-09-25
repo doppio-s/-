@@ -278,7 +278,9 @@ try {
 }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.5 : 2)), renderer.shadowMap.enabled = !0, renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const ALT = 20;
-let MAP = 280;
+// playable half-size; the world, obstacles and space field are generated to match
+const MAP_BASE = 560, MAP_K = MAP_BASE / 280;
+let MAP = MAP_BASE;
 const SKY = 11133951,
   scene = new THREE.Scene,
   HORIZON = 12905727;
@@ -1153,8 +1155,8 @@ const seaTex = canvasTex(256, (g, s2) => {
         y = Math.random() * s2;
       g.beginPath(), g.moveTo(x, y), g.quadraticCurveTo(x + 14, y - 10, x + 28, y), g.quadraticCurveTo(x + 42, y + 10, x + 56, y), g.stroke()
     }
-  }, 90),
-  sea = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshStandardMaterial({
+  }, 90 * MAP_K),
+  sea = new THREE.Mesh(new THREE.PlaneGeometry(1600 * MAP_K, 1600 * MAP_K), new THREE.MeshStandardMaterial({
     map: seaTex,
     roughness: .35
   }));
@@ -1176,9 +1178,9 @@ const ISLANDS = [],
   WORLD = {};
 (function() {
   const islands = ISLANDS;
-  for (let tries = 0; islands.length < 70 && tries < 4e3; tries++) {
-    const x = rand(-360, 360),
-      z = rand(-360, 360),
+  for (let tries = 0; islands.length < Math.round(70 * MAP_K * MAP_K * .85) && tries < 3e4; tries++) {
+    const x = rand(-MAP - 80, MAP + 80),
+      z = rand(-MAP - 80, MAP + 80),
       r = rand(6, 16);
     islands.every(o => Math.hypot(o.x - x, o.z - z) > o.r + r + 14) && islands.push({
       x,
@@ -1259,9 +1261,9 @@ const ISLANDS = [],
     list: leaves
   };
   const puffs = [];
-  for (let i = 0; i < 110; i++) {
-    const cx = rand(-360, 360),
-      cz = rand(-360, 360),
+  for (let i = 0; i < Math.round(110 * MAP_K * MAP_K * .85); i++) {
+    const cx = rand(-MAP - 80, MAP + 80),
+      cz = rand(-MAP - 80, MAP + 80),
       cy = rand(7, 11),
       n = 4 + (Math.random() * 3 | 0),
       s2 = rand(.8, 1.4);
@@ -1284,9 +1286,9 @@ const ISLANDS = [],
     emissive: 3820122
   }), puffs);
   const high = [];
-  for (let i = 0; i < 70; i++) {
-    const cx = rand(-380, 380),
-      cz = rand(-380, 380),
+  for (let i = 0; i < Math.round(70 * MAP_K * MAP_K * .85); i++) {
+    const cx = rand(-MAP - 100, MAP + 100),
+      cz = rand(-MAP - 100, MAP + 100),
       cy = rand(34, 52),
       n = 3 + (Math.random() * 3 | 0),
       s2 = rand(1, 1.8);
@@ -5846,7 +5848,7 @@ function dnSetArena(on) {
   else {
     camera.far = 700; sea.scale.set(1, 1, 1);
     if (themeNow >= 0) { const t = THEMES[themeNow]; scene.fog.near = t.fogN; scene.fog.far = t.fogF; WORLD.posts.visible = WORLD.tops.visible = !t.noIslands; }
-    if (!isSpace()) { MAP = 280; ALT_MIN = 7; ALT_MAX = 70; }
+    if (!isSpace()) { MAP = MAP_BASE; ALT_MIN = 7; ALT_MAX = 70; }
     player.y = clamp(player.y, ALT_MIN, ALT_MAX);
   }
   camera.updateProjectionMatrix();
@@ -6096,6 +6098,7 @@ function obstFreeSpot(rnd, r, keep) {
   }
   return null;
 }
+const OBST_K = Math.round(MAP_K * MAP_K * .8);
 function buildObstacles(i) {
   clearObstacles();
   const t = THEMES[i]; if (!t) return;
@@ -6108,7 +6111,7 @@ function buildObstacles(i) {
   if (!t.noIslands) for (const h of WORLD.hills.list) cyl(h.x, h.z, h.sx * 0.8, -5, h.y + h.sy * 0.8);
   if (i === 0) {   // OCEAN ISLES: tall sea stacks to weave between
     const rock = M(0x8a7f74, { roughness: 0.95, flatShading: true }), moss = M(0x5fae55, { roughness: 1 });
-    for (let k = 0; k < 16; k++) {
+    for (let k = 0; k < 16 * OBST_K; k++) {
       const r = 5 + rnd() * 5, h = 30 + rnd() * 28, p = obstFreeSpot(rnd, r, 55); if (!p) continue;
       const [x, z] = p;
       add(G.cyl, rock, r, h * 0.55, r, x, h * 0.275, z);
@@ -6119,7 +6122,7 @@ function buildObstacles(i) {
     }
   } else if (i === 1) {   // DESERT CANYON: layered mesas, needle spires and stone arches
     const bands = [0xb85c36, 0xd4804a, 0xc0643a, 0xe0a060].map(c => M(c, { roughness: 1, flatShading: true }));
-    for (let k = 0; k < 5; k++) {   // arches (placed first so they always find room): two legs and a beam, axis-aligned
+    for (let k = 0; k < 5 * OBST_K; k++) {   // arches (placed first so they always find room): two legs and a beam, axis-aligned
       const span = 34 + rnd() * 16, h = 30 + rnd() * 16, along = k % 2 === 0, p = obstFreeSpot(rnd, span * 0.6, 70); if (!p) continue;
       const [x, z] = p, leg = 5;
       for (const sd of [-1, 1]) {
@@ -6130,13 +6133,13 @@ function buildObstacles(i) {
       add(G.box, bands[3], bx * 2, 7, bz * 2, x, h + 3.5, z); box(x, z, bx, bz, h, h + 7);
       UNDERS.push({ x, z, y: h * 0.5, ax: along ? 'z' : 'x' });
     }
-    for (let k = 0; k < 12; k++) {
+    for (let k = 0; k < 12 * OBST_K; k++) {
       const r = 16 + rnd() * 18, h = 38 + rnd() * 22, p = obstFreeSpot(rnd, r, 60); if (!p) continue;
       const [x, z] = p;
       for (let b = 0; b < 4; b++) add(G.cyl, bands[b], r * (1 - b * 0.05), h / 4, r * (1 - b * 0.05), x, h / 8 + b * h / 4, z);
       cyl(x, z, r, -5, h);
     }
-    for (let k = 0; k < 12; k++) {
+    for (let k = 0; k < 12 * OBST_K; k++) {
       const r = 3 + rnd() * 2.5, h = 44 + rnd() * 22, p = obstFreeSpot(rnd, r, 50); if (!p) continue;
       const [x, z] = p;
       add(G.cone, bands[k % 4], r * 1.3, h, r * 1.3, x, h / 2, z);
@@ -6144,7 +6147,7 @@ function buildObstacles(i) {
     }
   } else if (i === 4) {   // CLOUD SEA: floating rock islands hanging over the clouds
     const rock = M(0x8a7aa0, { roughness: 0.9, flatShading: true }), moss = M(0xffb0d0, { roughness: 0.8 }), fall = M(0xffffff, { roughness: 0.3, transparent: true, opacity: 0.55 });
-    for (let k = 0; k < 11; k++) {
+    for (let k = 0; k < 11 * OBST_K; k++) {
       const p = obstFreeSpot(rnd, 16, 60); if (!p) continue;
       const [x, z] = p, r = 9 + rnd() * 9, y = 22 + rnd() * 30, h = r * (1.1 + rnd() * 0.5);
       add(G.cone, rock, r, h, r, x, y - h / 2, z).rotation.x = Math.PI;   // inverted cone of rock
@@ -6154,7 +6157,7 @@ function buildObstacles(i) {
     }
   } else if (i === 3) {   // NIGHT FRONT: sea platforms and blinking radio masts
     const steel = M(0x4a5260, { metalness: 0.5, roughness: 0.5 }), deck = M(0x2c323b), lamp = M(0xff3b3b, { emissive: 0xff1010, emissiveIntensity: 2 }), win = M(0xffe08a, { emissive: 0xffb13b, emissiveIntensity: 1.5 });
-    for (let k = 0; k < 8; k++) {
+    for (let k = 0; k < 8 * OBST_K; k++) {
       const p = obstFreeSpot(rnd, 26, 60); if (!p) continue;
       const [x, z] = p, top = 22 + rnd() * 8;
       for (const [ox, oz] of [[-15, -10], [15, -10], [-15, 10], [15, 10]]) { add(G.cyl, steel, 1.8, top, 1.8, x + ox, top / 2, z + oz); cyl(x + ox, z + oz, 2, -5, top); }
@@ -6165,7 +6168,7 @@ function buildObstacles(i) {
       const m = add(G.sph, lamp, 1, 1, 1, x + 12, top + 7, z + 8); m.userData.blink = true;
       add(G.cyl, steel, 0.6, 12, 0.6, x + 12, top + 1, z + 8);
     }
-    for (let k = 0; k < 10; k++) {
+    for (let k = 0; k < 10 * OBST_K; k++) {
       const p = obstFreeSpot(rnd, 5, 55); if (!p) continue;
       const [x, z] = p, h = 52 + rnd() * 14;
       add(G.cyl, steel, 1.6, h, 1.6, x, h / 2, z);
@@ -6197,8 +6200,22 @@ function obstPush(o, pad) {
   }
   return hit;
 }
-function obstInside(x, y, z, pad = 0) {
+const OBST_CELL = 40, obstGrid = new Map();
+let obstGridN = -1;
+function obstCells() {
+  if (obstGridN === OBST.length) return;
+  obstGridN = OBST.length, obstGrid.clear();
   for (const c of OBST) {
+    const ex = (c.r || c.hx) + 8, ez = (c.r || c.hz) + 8;
+    for (let gx = Math.floor((c.x - ex) / OBST_CELL); gx <= Math.floor((c.x + ex) / OBST_CELL); gx++)
+      for (let gz = Math.floor((c.z - ez) / OBST_CELL); gz <= Math.floor((c.z + ez) / OBST_CELL); gz++) {
+        const k = gx * 4096 + gz; obstGrid.has(k) || obstGrid.set(k, []); obstGrid.get(k).push(c);
+      }
+  }
+}
+function obstInside(x, y, z, pad = 0) {
+  obstCells();
+  for (const c of obstGrid.get(Math.floor(x / OBST_CELL) * 4096 + Math.floor(z / OBST_CELL)) || []) {
     if (y > c.y1 + pad || y < c.y0 - pad) continue;
     if (c.kind === 'cyl' ? Math.hypot(x - c.x, z - c.z) < c.r + pad : Math.abs(x - c.x) < c.hx + pad && Math.abs(z - c.z) < c.hz + pad) return true;
   }
@@ -6349,7 +6366,8 @@ const THEMES = [{
   hills: [0xc8b0e8, 0xb89ad8, 0xd8c0f0, 0xa88ac8],
   trunk: 0x8a6a9a,
   leaves: [0xffc0dc, 0xffb0d0, 0xf8c8e8, 0xffd0e4],
-  noIslands: !0
+  noIslands: !0,
+  noTurrets: !0
 }];
 let themeNow = -1;
 const starDome = (() => {
@@ -6408,7 +6426,7 @@ function applyTheme(i) {
 }
 const themeFlag = k => themeNow >= 0 && !!THEMES[themeNow][k],
   SPACE = {
-    map: 440,
+    map: 800,
     altMin: -140,
     altMax: 230
   },
@@ -6441,8 +6459,8 @@ function buildTori() {
     [60, -90, 260],
     [-80, 190, 20],
     [300, -40, 250]
-  ].forEach(([x, y, z], i) => {
-    const station = i % 2 === 1,
+  ].forEach(([x0, y, z0], i) => {
+    const x = x0 * 1.8, z = z0 * 1.8, station = i % 2 === 1,
       R = station ? rand(46, 62) : rand(34, 52),
       r = station ? rand(5, 7) : rand(8, 12),
       g = new THREE.TorusGeometry(R, r, station ? 14 : 9, station ? 64 : 26);
@@ -6487,7 +6505,7 @@ function torusDist(T, o) {
 function setSpace(on) {
   buildTori();
   for (const T of TORI) T.mesh.visible = on;
-  sea.visible = !on, WORLD.puffs.visible = !on, MAP = on ? SPACE.map : 280, ALT_MIN = on ? SPACE.altMin : 7, ALT_MAX = on ? SPACE.altMax : 70, on || (player.y = clamp(player.y, ALT_MIN, ALT_MAX))
+  sea.visible = !on, WORLD.puffs.visible = !on, MAP = on ? SPACE.map : MAP_BASE, ALT_MIN = on ? SPACE.altMin : 7, ALT_MAX = on ? SPACE.altMax : 70, on || (player.y = clamp(player.y, ALT_MIN, ALT_MAX))
 }
 
 function updateSpace(dt) {
@@ -6570,7 +6588,7 @@ function placeRock(r, far) {
 
 function setAsteroids(on) {
   if (on && !ROCKS.length)
-    for (let i = 0; i < 140; i++) {
+    for (let i = 0; i < 280; i++) {
       const big = Math.random() < .12,
         huge = i % 35 === 0,
         r = huge ? rand(24, 30) : big ? rand(11, 16) : rand(3, 8.5),
@@ -7168,8 +7186,8 @@ const keepBot = b => b.bomber || b.squad,
             lim = (p, d) => d > 0 ? [(-E - p) / d, (E - p) / d] : d < 0 ? [(E - p) / d, (-E - p) / d] : [-1e9, 1e9],
             [a0, a1] = lim(ox, dx2),
             [b02, b1] = lim(oz, dz2),
-            t0 = Math.max(a0, b02),
-            t1 = Math.min(a1, b1),
+            t0 = Math.max(a0, b02, -240),
+            t1 = Math.min(a1, b1, 260),
             score = Math.min(-t0, t1);
           (!bestK || score > bestK.score) && (bestK = {
             score,
