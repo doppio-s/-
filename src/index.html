@@ -86,7 +86,11 @@
   #hint{bottom:12%}
   #hud{top:12px}
   #hearts{font-size:30px;line-height:1.1;margin-top:4px;letter-spacing:2px}
-  #hearts .h{color:#ff4d6d}#hearts .h.off{color:rgba(255,255,255,.35)}
+  #hearts .h{color:#ff4d6d;display:inline-flex;flex-direction:column;align-items:center;vertical-align:top;margin-right:3px}#hearts .h.off{color:rgba(255,255,255,.35)}
+  #hearts .h.part{color:#ff9fb2}
+  #hearts .h i{display:flex;gap:2px;margin-top:1px;line-height:0}
+  #hearts .h i b{display:block;width:6px;height:6px;border-radius:2px;background:#7ff3ff;box-shadow:0 0 4px #7ff3ff99}
+  #hearts .h i b.o{background:rgba(255,255,255,.22);box-shadow:none}
   #ammoRow{display:flex;align-items:center;gap:6px;font-size:26px;font-weight:900;color:#ffe24a;margin-top:2px}
   #ammoRow .bullet{width:14px;height:28px}
   #ammoRow.empty{color:#ff5c5c;animation:blink .4s steps(2) infinite}

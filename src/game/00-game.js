@@ -1533,14 +1533,14 @@ const PARTS = {
     id: "light",
     cost: 100,
     name: "Light alloy",
-    desc: "+12% speed / \u22121 heart",
+    desc: "+12% speed / \u22121 armor",
     speed: 1.12,
     hp: -1
   }, {
     id: "heavy",
     cost: 200,
     name: "Reinforced hull",
-    desc: "+2 hearts / \u221214% speed",
+    desc: "+2 armor / \u221214% speed",
     speed: .86,
     hp: 2
   }]
@@ -1637,8 +1637,8 @@ function renderParts() {
   $("partList").innerHTML = Object.entries(PARTS).map(([slot, items]) => `<fieldset><legend>${slot}</legend><div class="partOptions">${items.map(p=>`<button class="partCard ${garage.loadout[slot]===p.id?"equipped":""}" data-slot="${slot}" data-part="${p.id}" aria-pressed="${garage.loadout[slot]===p.id}"><span>${p.name}</span><small>${p.desc}</small><em>${garage.loadout[slot]===p.id?"EQUIPPED":ownsPart(slot,p.id)?"EQUIP":p.cost+" COINS"}</em></button>`).join("")}</div></fieldset>`).join("");
   const stats = [
     ["CRUISE", Math.round(playerSpeed() / speedMul() * 12) + " km/h"],
-    ["HANDLING", Math.round(turnRate() / 2.7 * 100) + "%"],
-    ["HULL", maxHp() + " HP"],
+    ["HANDLING", Math.round(turnRate() / TURN_BASE * 100) + "%"],
+    ["HULL", HEARTS + " \u2665 \xB7 ARMOR " + armorOf(planeNow())],
     ["DAMAGE", gunDmg().toFixed(2)],
     ["FIRE RATE", (1 / fireGap()).toFixed(1) + "/s"]
   ];
@@ -1659,7 +1659,7 @@ const PLANES = [{
 }, {
   id: "swift",
   name: "SWIFT",
-  desc: "Very agile, but only 2 hearts",
+  desc: "Very agile, but no armor at all",
   cost: 300,
   hp: -1,
   turn: 1.28,
@@ -1671,7 +1671,7 @@ const PLANES = [{
 }, {
   id: "brick",
   name: "BRICK",
-  desc: "Biplane: +2 hearts, slower turns",
+  desc: "Biplane: heavy armor, slower turns",
   cost: 450,
   hp: 2,
   turn: .85,
@@ -1695,7 +1695,7 @@ const PLANES = [{
 }, {
   id: "falcon",
   name: "FALCON X",
-  desc: "Day 7 reward: twin guns, +1 heart, 4 missiles",
+  desc: "Day 7 reward: twin guns, armor 4, 4 missiles",
   cost: null,
   hp: 1,
   turn: 1.2,
@@ -1837,6 +1837,10 @@ for (const p of PLANES) { const t = STAT_TUNE[p.id]; t && ([p.cost, p.hp, p.turn
 // shop prices: three bargains, everything else doubled. p.tierCost keeps the power grade (abilities, lock speed) on the tuned line
 const PRICE_SET = { swift: 150, orb: 500, viper: 350 };
 for (const p of PLANES) { p.tierCost = p.cost; if (p.cost) p.cost = PRICE_SET[p.id] ?? p.cost * 2; }
+// armor: extra hits spread over the 3 fixed hearts. Cheap airframes are fragile
+const PLANE_ARMOR = { classic: 0, swift: 0, viper: 1, orb: 1, brick: 5, lancer: 2, twin: 3, anvil: 6, seraph: 3, mantis: 4, spectre: 5, falcon: 4, prism: 4, mothership: 6, halo: 5 };
+// handling: every airframe turned too sharply, so the spread between them is squeezed too
+for (const p of PLANES) { p.armor = PLANE_ARMOR[p.id] ?? 0; p.turn = 1 + (p.turn - 1) * .6; }
 PLANES.sort((a, b) => (a.cost == null ? 2000 : a.cost) - (b.cost == null ? 2000 : b.cost));
 const UPGRADES = [{
     id: "engine",
@@ -1856,7 +1860,7 @@ const UPGRADES = [{
   }, {
     id: "armor",
     name: "ARMOR",
-    desc: "+1 heart per level",
+    desc: "+1 armor per level (one more hit)",
     max: 3
   }, {
     id: "ammo",
@@ -1966,7 +1970,8 @@ const saveGarage = () => Store.set("garage", JSON.stringify(garage)),
   lockRingOf = p => .26 + .14 * tierOf(p),
   boostSecsOf = p => 1 / (.3 * (1 - .35 * tierOf(p))),
   paintNow = () => PAINTS.find(p => p.id === garage.paint) || PAINTS[0],
-  maxHp = () => Math.max(1, 3 + garage.lv.armor + planeNow().hp + partStats().hp + run.hp),
+  armorOf = (p, mod = partStats()) => Math.max(0, p.armor + garage.lv.armor + mod.hp + run.hp),
+  maxHp = () => HEARTS + armorOf(planeNow()),
   maxAmmo = () => Math.round((40 + 10 * garage.lv.ammo) * (1 + .5 * run.ammo)),
   startAmmo = () => 12 + 6 * garage.lv.ammo,
   ammoBox = () => Math.round((8 + 2 * garage.lv.ammo) * (1 + .5 * run.ammo)),
@@ -1974,7 +1979,7 @@ const saveGarage = () => Store.set("garage", JSON.stringify(garage)),
   maxFlr = () => 9 + 3 * run.flare,
   startMissiles = () => planeNow().missiles + Math.floor(garage.lv.ammo / 2),
   startFlares = () => 3 + Math.floor(garage.lv.ammo / 2),
-  turnRate = () => 2.7 * masteryBonus() * (1 + .1 * garage.lv.engine) * (1 + .1 * planeTier()) * planeNow().turn * partStats().turn * (1 + .1 * run.spd),
+  turnRate = () => TURN_BASE * masteryBonus() * (1 + .1 * garage.lv.engine) * (1 + .1 * planeTier()) * planeNow().turn * partStats().turn * (1 + .1 * run.spd),
   fireGap = () => .15 / ((1 + .15 * garage.lv.guns) * planeNow().fire * partStats().fire * (1 + .2 * run.fire)),
   gunDmg = () => (1 + .5 * garage.lv.power) * partStats().damage * (1 + .25 * run.dmg),
   todayStr = () => {
@@ -2407,14 +2412,20 @@ function resumeGame() {
   state === "paused" && enterReady()
 }
 
-function damage() {
+// hearts are fixed at 3; armor adds hits to them. player.hp counts every remaining hit
+const HEARTS = 3, TURN_BASE = 1.9;
+function heartCaps() { const A = maxHp() - HEARTS, b = Math.floor(A / HEARTS), x = A % HEARTS; return Array.from({ length: HEARTS }, (_, i) => 1 + b + (i < x ? 1 : 0)); }
+function heartBase(hp = player.hp) { let c = 0; for (const cap of heartCaps()) { if (hp <= c + cap) return c; c += cap; } return c; }   // hits left below the current heart
+function heartTop(hp = player.hp) { let c = 0; for (const cap of heartCaps()) { c += cap; if (hp < c) return c; } return c; }    // current heart topped up
+const heartsLeft = () => { let c = 0, n = 0; for (const cap of heartCaps()) { if (player.hp > c) n++; c += cap; } return n; };
+function damage(whole, why) {
   if (player.invul > 0 || state !== "playing" || rollTime > 0) return;
   if (shieldTime > 0) {
     for (let i = 0; i < 10; i++) addPart(player.x, player.y, player.z, rand(-8, 8), rand(-8, 8), rand(-8, 8), .3, .45, 8385535, .4);
     Sound.tone(900, .08, "triangle", .08, 1400), player.invul = .25;
     return
   }
-  player.hp--, player.invul = 1.6, shake = .35;
+  whole ? (player.hp = heartBase(), shake = .6, popup(player.x, player.y + 3, player.z, (why ? why + " " : "") + "-1 \u2665", !0)) : player.hp--, player.invul = 1.6, shake = Math.max(shake, .35);
   const fl = $("dmgFlash");
   fl.classList.remove("hit"), fl.offsetWidth, fl.classList.add("hit"), Sound.sfxHit(), explode(player.x, player.y, player.z, .4), hitStop(.12, .3), updateHud(!0), player.hp <= 0 && crash()
 }
@@ -2626,6 +2637,19 @@ function updateFlightHud() {
   $("fltHeat").style.width = ((player.heat || 0) * 100).toFixed(1) + "%", $("fltHeatBar").classList.toggle("hot", !!player.ovh);
   $("btnBoost").classList.toggle("hot", !!player.ovh);
 }
+// below ALT_MIN you are skimming the water; touch it and you lose a whole heart and skip back up
+const SEA_Y = 1.6;
+let pullUpT = 0;
+function seaCheck(dt) {
+  pullUpT -= dt;
+  if (state !== "playing") return;
+  if (player.y < ALT_MIN - 1 && player.p < 0 && pullUpT <= 0) pullUpT = 1.5, toast("PULL UP!"), Sound.tone(700, .1, "square", .06), Sound.tone(700, .1, "square", .06, null, .15);
+  if (player.y > SEA_Y + .05) return;
+  for (let i = 0; i < 30; i++) addPart(player.x + rand(-3, 3), .6, player.z + rand(-3, 3), rand(-8, 8), rand(6, 18), rand(-8, 8), rand(.5, 1), rand(.5, 1.1), i % 2 ? 16777215 : 10477823, 0, 22);
+  shockwave(player.x, .8, player.z, 12, 16777215, .45), Sound.noise(.5, .35, 900), Sound.tone(120, .4, "sine", .2, 50);
+  player.invul <= 0 && !(shieldTime > 0) ? damage(!0, themeNow === 1 ? "GROUND!" : "SPLASH!") : shieldTime > 0 && popup(player.x, player.y + 2, player.z, "SHIELD");
+  player.y = ALT_MIN + 5, player.p = .35, player.prS = 0, player.ve = Math.max(player.ve || 1, .9), player.stall = !1;
+}
 function updatePlayer(dt) {
   const tr = turnRate(),
     outside = Math.abs(player.x) > MAP || Math.abs(player.z) > MAP,
@@ -2674,7 +2698,7 @@ function updatePlayer(dt) {
   let pr = y * FLT.PITCH * sens * auth * (.25 + .75 * Math.max(0, cb));
   player.stall && !space && (pr = Math.min(pr, 0) - 1.6 * clamp(player.p + .75, 0, 2));
   player.prS = lerp(player.prS || 0, pr, Math.min(1, dt * 14)), player.p = clamp(player.p + player.prS * dt, -pmax, pmax);
-  player.y <= ALT_MIN + 1 && player.p < 0 && (player.p = lerp(player.p, 0, Math.min(1, dt * 8))), player.y >= ALT_MAX - 1 && player.p > 0 && (player.p = lerp(player.p, 0, Math.min(1, dt * 8)));
+  space && player.y <= ALT_MIN + 1 && player.p < 0 && (player.p = lerp(player.p, 0, Math.min(1, dt * 8))), player.y >= ALT_MAX - 1 && player.p > 0 && (player.p = lerp(player.p, 0, Math.min(1, dt * 8)));
   // ---- energy: thrust toward the throttle setting, gravity on climbs/dives, bleed in hard turns ----
   const tgt = player.boosting ? FLT.BOOST : player.braking ? FLT.BRAKE : FLT.CRUISE,
     eng = 1 + .08 * garage.lv.engine,
@@ -2690,7 +2714,7 @@ function updatePlayer(dt) {
   $("stallWarn").hidden = !player.stall;
   // ---- move ----
   const spd = playerSpeed(), cp = Math.cos(player.p);
-  player.x += Math.cos(player.a) * cp * spd * dt, player.z += Math.sin(player.a) * cp * spd * dt, player.y = clamp(player.y + (Math.sin(player.p) * spd + (draft ? 14 : 0)) * dt, ALT_MIN, ALT_MAX), updateFlightHud(), $("warn").classList.toggle("hidden", !outside), player.invul > 0 && (player.invul -= dt), player.fireCd -= dt, player.mslCd -= dt, player.flareCd -= dt, emptyToastT -= dt, emptySfxT -= dt, (isBeamPlane() ? updateBeam(dt) : (hideBeam(), firing() && player.fireCd <= 0 && (stormTime > 0 ? (pFire(), player.fireCd = fireGap() / 2.5, Sound.sfxShoot(), muzzleFlash()) : player.ammo > 0 ? (pFire(), player.ammo--, player.fireCd = fireGap(), Sound.sfxShoot(), updateHud(!0), muzzleFlash()) : (player.fireCd = .15, emptySfxT <= 0 && (Sound.sfxEmpty(), emptySfxT = .35), emptyToastT <= 0 && (toast("Out of ammo! Grab the yellow boxes"), emptyToastT = 4)))))
+  player.x += Math.cos(player.a) * cp * spd * dt, player.z += Math.sin(player.a) * cp * spd * dt, player.y = clamp(player.y + (Math.sin(player.p) * spd + (draft ? 14 : 0)) * dt, space ? ALT_MIN : SEA_Y, ALT_MAX), space || seaCheck(dt), updateFlightHud(), $("warn").classList.toggle("hidden", !outside), player.invul > 0 && (player.invul -= dt), player.fireCd -= dt, player.mslCd -= dt, player.flareCd -= dt, emptyToastT -= dt, emptySfxT -= dt, (isBeamPlane() ? updateBeam(dt) : (hideBeam(), firing() && player.fireCd <= 0 && (stormTime > 0 ? (pFire(), player.fireCd = fireGap() / 2.5, Sound.sfxShoot(), muzzleFlash()) : player.ammo > 0 ? (pFire(), player.ammo--, player.fireCd = fireGap(), Sound.sfxShoot(), updateHud(!0), muzzleFlash()) : (player.fireCd = .15, emptySfxT <= 0 && (Sound.sfxEmpty(), emptySfxT = .35), emptyToastT <= 0 && (toast("Out of ammo! Grab the yellow boxes"), emptyToastT = 4)))))
 }
 const attackLimit = () => dirPhase === "wave" && wtype === "survive" ? 4 : lvT < 90 ? 2 : 3;
 
@@ -2944,7 +2968,7 @@ function update(dt) {
     pickups = pickups.filter(p => !p.gone), pickups.filter(p => p.type === "ammo").length < 7 && spawnPickup("ammo"), pickups.filter(p => p.type === "missile").length < 2 && spawnPickup("missile"), heartCd -= dt, heartCd <= 0 && (heartCd = 20, player.hp < maxHp() && !pickups.some(p => p.type === "heart") && spawnPickup("heart"));
     for (const p of pickups)
       if (dist3(p, player) < 4 + 5 * run.mag) {
-        p.gone = !0, removePickup(p), p.type === "ammo" ? (player.ammo = Math.min(maxAmmo(), player.ammo + ammoBox()), Sound.sfxAmmo(), bumpAmmo(), popup(p.x, p.y, p.z, "+" + ammoBox() + " AMMO")) : p.type === "missile" ? (player.missiles = Math.min(maxMsl(), player.missiles + 2), player.flares = Math.min(maxFlr(), player.flares + 1), Sound.sfxAmmo(), toast("+2 MISSILES  +1 FLARE")) : player.hp < maxHp() ? (player.hp++, Sound.sfxHeart(), popup(p.x, p.y, p.z, "+1 \u2665", !0)) : (killPts += 500, Sound.sfxHeart(), popup(p.x, p.y, p.z, "FULL HP +500", !0));
+        p.gone = !0, removePickup(p), p.type === "ammo" ? (player.ammo = Math.min(maxAmmo(), player.ammo + ammoBox()), Sound.sfxAmmo(), bumpAmmo(), popup(p.x, p.y, p.z, "+" + ammoBox() + " AMMO")) : p.type === "missile" ? (player.missiles = Math.min(maxMsl(), player.missiles + 2), player.flares = Math.min(maxFlr(), player.flares + 1), Sound.sfxAmmo(), toast("+2 MISSILES  +1 FLARE")) : player.hp < maxHp() ? (player.hp = Math.min(maxHp(), heartTop()), Sound.sfxHeart(), popup(p.x, p.y, p.z, "+1 \u2665", !0)) : (killPts += 500, Sound.sfxHeart(), popup(p.x, p.y, p.z, "FULL HP +500", !0));
         for (let i = 0; i < 16; i++) addPart(p.x, p.y, p.z, rand(-10, 10), rand(-2, 10), rand(-10, 10), .55, .4, p.type === "ammo" ? 16769610 : p.type === "missile" ? 16735324 : 16743068);
         shockwave(p.x, p.y, p.z, 5, p.type === "ammo" ? 16769610 : p.type === "missile" ? 16735324 : 16743068, .35), updateHud(!0)
       } pickups = pickups.filter(p => !p.gone);
@@ -2952,8 +2976,8 @@ function update(dt) {
       if (!b.dead && dist3(b, player) < (ramTime > 0 ? 4.8 : 3.4) * b.scale) {
         const hurt = player.invul <= 0 && ramTime <= 0;
         ramTime > 0 && (ramTime = Math.min(ramTime + .5, 4), player.ramChain = (player.ramChain || 0) + 1, player.ramChain > 1 && popup(player.x, player.y + 4, player.z, "RAM CHAIN x" + player.ramChain, !0));
-        killBot(b), hurt && damage()
-      } if (bots = bots.filter(b => !b.dead), boss && !boss.dead && bossDist(player) < .5 && player.invul <= 0 && (ramTime > 0 ? (hitBoss(8, player), player.invul = .8, shake = .3) : damage()), updateBoss(dt, !0), updateCombo(dt), updateTips(dt), player.trailT -= dt, player.trailT <= 0) {
+        killBot(b), hurt && damage(!0, "COLLISION")
+      } if (bots = bots.filter(b => !b.dead), boss && !boss.dead && bossDist(player) < .5 && player.invul <= 0 && (ramTime > 0 ? (hitBoss(8, player), player.invul = .8, shake = .3) : damage(!0, "COLLISION")), updateBoss(dt, !0), updateCombo(dt), updateTips(dt), player.trailT -= dt, player.trailT <= 0) {
       const f = fwdOf(player);
       player.trailT = .05, addPart(player.x - f[0] * 2.6, player.y - f[1] * 2.6, player.z - f[2] * 2.6, 0, .5, 0, .55, .5, 16777215, .8)
     }
@@ -3462,8 +3486,8 @@ function updateHud(force) {
   if (!force && key === hudCache) return;
   hudCache = key, $("score").innerHTML = scoreNow() + "<small> pts</small>";
   let h = "";
-  for (let i = 0; i < maxHp(); i++) h += '<span class="h' + (i < player.hp ? "" : " off") + '">&#9829;</span>';
-  $("hearts").innerHTML = h, $("ammo").textContent = player.ammo, $("ammoRow").classList.toggle("empty", player.ammo === 0), $("ammoRow").classList.toggle("low", player.ammo > 0 && player.ammo <= 5), $("lowHp").classList.toggle("on", state === "playing" && player.hp === 1 && maxHp() > 1), $("speed").textContent = "ALT " + Math.round(player.y * 5) + "m", $("mslN").textContent = player.missiles, $("flrN").textContent = player.flares, $("btnMsl").classList.toggle("empty", player.missiles === 0), $("btnFlare").classList.toggle("empty", player.flares === 0)
+  { let c = 0; for (const cap of heartCaps()) { const f = clamp(player.hp - c, 0, cap); c += cap; h += '<span class="h' + (f === 0 ? " off" : f < cap ? " part" : "") + '">&#9829;' + (cap > 1 ? "<i>" + "<b></b>".repeat(f) + "<b class=o></b>".repeat(cap - f) + "</i>" : "") + "</span>"; } }
+  $("hearts").innerHTML = h, $("ammo").textContent = player.ammo, $("ammoRow").classList.toggle("empty", player.ammo === 0), $("ammoRow").classList.toggle("low", player.ammo > 0 && player.ammo <= 5), $("lowHp").classList.toggle("on", state === "playing" && heartsLeft() === 1), $("speed").textContent = "ALT " + Math.round(player.y * 5) + "m", $("mslN").textContent = player.missiles, $("flrN").textContent = player.flares, $("btnMsl").classList.toggle("empty", player.missiles === 0), $("btnFlare").classList.toggle("empty", player.flares === 0)
 }
 
 function bumpAmmo() {
@@ -4268,7 +4292,7 @@ const thumbnailCache = new Map,
     brick: {
       role: "THE FLYING FORTRESS",
       headline: "Built to take the hit.",
-      detail: "Stacked biplane wings and a reinforced airframe. Two extra hearts, with slower turns.",
+      detail: "Stacked biplane wings and a reinforced airframe. Heavy armor, with slower turns.",
       accent: "#e9b577"
     },
     twin: {
@@ -4344,7 +4368,7 @@ function renderAircraftOffer() {
       ["GRADE", tierGrade(tierOf(p))],
       ["CRUISE", Math.round(180 * (1 + .08 * tierOf(p)) * p.speed * mod.speed) + " km/h"],
       ["HANDLING", Math.round(2.7 * (1 + .1 * garage.lv.engine) * (1 + .1 * tierOf(p)) * p.turn * mod.turn / 2.7 * 100) + "%"],
-      ["HULL", Math.max(1, 3 + p.hp + garage.lv.armor + mod.hp) + " HP"],
+      ["ARMOR", armorOf(p, mod) + " \xB7 " + (HEARTS + armorOf(p, mod)) + " HITS"],
       ["GUNS", p.guns],
       ["MISSILES", p.missiles + Math.floor(garage.lv.ammo / 2)],
       ["LOCK-ON", lockRangeOf(p) + "m \xB7 " + Math.round(lockRingOf(p) / .3 * 100) + "%"],
@@ -5929,7 +5953,7 @@ function updateCarrier(dt, hostile) {
       if (!dnMetal({ x: player.x, y: ny, z: player.z })) player.y = ny;
       if (dnMetal(player)) { player.x = p.x; player.y = p.y; player.z = p.z; }
       shieldTime > 0 || (player.ve = Math.max(.45, (player.ve || 1) * .8));
-      if (player.invul <= 0) { damage(); popup(player.x, player.y + 2, player.z, shieldTime > 0 ? 'SHIELD' : 'HULL!'); }
+      if (player.invul <= 0) { shieldTime > 0 ? popup(player.x, player.y + 2, player.z, 'SHIELD') : damage(!0, 'HULL!'); }
       shake = Math.max(shake, 0.25);
       for (let i = 0; i < 6; i++) addPart(player.x, player.y, player.z, rand(-6, 6), rand(-4, 6), rand(-6, 6), 0.4, 0.45, 0xffe08a, 0.5);
     }
@@ -6152,7 +6176,7 @@ function updateObstacles(dt) {
   }
   if (state === 'playing' && player.alive && obstPush(player, 1.8)) {
     shieldTime > 0 || (player.ve = Math.max(.45, (player.ve || 1) * .8));
-    if (player.invul <= 0) { damage(); popup(player.x, player.y + 2, player.z, shieldTime > 0 ? 'SHIELD' : 'CRASH!'); }
+    if (player.invul <= 0) { shieldTime > 0 ? popup(player.x, player.y + 2, player.z, 'SHIELD') : damage(!0, 'CRASH!'); }
     shake = Math.max(shake, 0.25);
     for (let i = 0; i < 6; i++) addPart(player.x, player.y, player.z, rand(-6, 6), rand(-2, 6), rand(-6, 6), 0.5, 0.5, 0x9a8a7a, 0.6);
   }
@@ -6428,7 +6452,7 @@ function updateSpace(dt) {
               }),
               gl = Math.hypot(gx, gy, gz) || 1,
               push = 1.6 - d;
-            player.x += gx / gl * push, player.y += gy / gl * push, player.z += gz / gl * push, player.invul <= 0 && (damage(), popup(player.x, player.y + 2, player.z, T.station ? "STATION HULL!" : "ROCK RING!")), shake = Math.max(shake, .25)
+            player.x += gx / gl * push, player.y += gy / gl * push, player.z += gz / gl * push, player.invul <= 0 && damage(!0, T.station ? "STATION HULL!" : "ROCK RING!"), shake = Math.max(shake, .25)
           }
           const rx = player.x - T.mesh.position.x,
             ry = player.y - T.mesh.position.y,
@@ -6507,7 +6531,7 @@ function updateAsteroids(dt) {
       for (const r of ROCKS) {
         const rr = r.r * r.r;
         if (state === "playing" && player.alive && pushOut(player, r, 1.8)) {
-          player.invul <= 0 && (damage(), popup(player.x, player.y + 2, player.z, "ASTEROID!")), shake = Math.max(shake, .25);
+          player.invul <= 0 && damage(!0, "ASTEROID!"), shake = Math.max(shake, .25);
           for (let i = 0; i < 6; i++) addPart(player.x, player.y, player.z, rand(-6, 6), rand(-6, 6), rand(-6, 6), .5, .5, 9075306, .6)
         }
         for (const b of bullets) {
@@ -6742,9 +6766,9 @@ const UPS = [{
   }
 }, {
   id: "hp",
-  big: "+1 \u2665",
+  big: "+1 ARMOR",
   name: "HULL PLATING",
-  desc: "One more max heart, and repair one",
+  desc: "+1 armor for this run, and repair one hit",
   max: 3,
   apply() {
     run.hp++, player.hp = Math.min(maxHp(), player.hp + 1)
@@ -6816,7 +6840,7 @@ const UPS = [{
   id: "repair",
   big: "FULL \u2665",
   name: "FIELD REPAIR",
-  desc: "Restore every heart",
+  desc: "Restore every heart and all armor",
   max: 0,
   apply() {
     player.hp = maxHp()
@@ -7126,8 +7150,8 @@ const keepBot = b => b.bomber || b.squad,
           b && loopBuff(b), botSpawnCd = rand(3, 5)
         }
         for (const b of wv.list)
-          if (!b.dead && (b.x - b.sx) * b.dx + (b.z - b.sz) * b.dz >= b.len && (b.dead = !0, b.escaped = !0, removeBot(b), wv.esc++, banner("BOMBER GOT THROUGH", player.hp > 1 ? "-1 \u2665" : "LAST HEART SPARED", "#ff5c7a"), player.hp > 1)) {
-            player.hp--;
+          if (!b.dead && (b.x - b.sx) * b.dx + (b.z - b.sz) * b.dz >= b.len && (b.dead = !0, b.escaped = !0, removeBot(b), wv.esc++, banner("BOMBER GOT THROUGH", heartsLeft() > 1 ? "-1 \u2665" : "LAST HEART SPARED", "#ff5c7a"), heartsLeft() > 1)) {
+            player.hp = heartBase();
             const fl = $("dmgFlash");
             fl.classList.remove("hit"), fl.offsetWidth, fl.classList.add("hit"), Sound.sfxHit(), shake = .3, updateHud(!0)
           } bots = bots.filter(b => !b.dead), wv.list.every(b => b.dead) && (wv.esc || waveBonus(2e3, "PERFECT INTERCEPT"), waveCleared(wv.esc ? "INTERCEPT OVER" : "PERFECT INTERCEPT", wv.n - wv.esc + "/" + wv.n + " BOMBERS DOWN"))
