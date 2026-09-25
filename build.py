@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assemble flight-test.html: src/index.html + bundled three.js (vendor) + src/game/*.js.
 
-The game code is whitespace/comment-minified with esbuild (identifiers are kept, so the
+three.js is tree-shaken to the classes the game uses, and the game code is whitespace/comment-minified with esbuild (identifiers are kept, so the
 #dbg hook still sees real names). Run `npm install` once first. The output must stay under
 1,000,000 bytes: some previews cut files off there, which leaves the page stuck on Loading.
 """
@@ -11,20 +11,23 @@ from pathlib import Path
 
 root = Path(__file__).parent
 LIMIT = 1_000_000
-three = (root / 'vendor/three.module.min.js').read_text()
-m = re.search(r'export\{([^}]*)\};?\s*$', three)
-if not m:
-    raise SystemExit('three.module.min.js: export list not found')
-pairs = []
-for item in m.group(1).split(','):
-    item = item.strip()
-    local, _, name = item.partition(' as ')
-    pairs.append(f'{name or local}:{local}')
-bundle = '(function(){\n' + three[:m.start()] + '\nwindow.THREE_LIB=Object.freeze({' + ','.join(pairs) + '});\n})();'
-
 esbuild = root / 'node_modules/.bin/esbuild'
 if not esbuild.exists():
     raise SystemExit('esbuild missing: run `npm install` first')
+
+
+def three_bundle(game_src):
+    """three.js tree-shaken down to the THREE.* names the game uses, exposed as window.THREE_LIB."""
+    names = sorted(set(re.findall(r'THREE\.([A-Za-z_][A-Za-z0-9_]*)', game_src)))
+    entry = root / 'node_modules/.three-entry.js'
+    entry.write_text(f"import {{{','.join(names)}}} from '../vendor/three.module.min.js';\n"
+                     f"window.THREE_LIB = Object.freeze({{{','.join(names)}}});\n")
+    r = subprocess.run([str(esbuild), str(entry), '--bundle', '--minify', '--format=iife', '--legal-comments=none',
+                        '--log-level=error', '--banner:js=/*! three.js r170 | MIT License | Copyright 2010-2024 Three.js Authors */'],
+                       capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit('three bundle failed:\n' + r.stderr)
+    return r.stdout
 
 
 def minify(js):
@@ -50,6 +53,7 @@ builds = {
 }
 for out, (src, html) in builds.items():
     game = minify(src)
+    bundle = three_bundle(src)
     for name, text in (('three', bundle), ('game', game)):
         if '</script' in text:
             raise SystemExit(f'{name}: contains </script')
