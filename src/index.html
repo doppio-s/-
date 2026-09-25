@@ -88,6 +88,12 @@
   #hearts{font-size:30px;line-height:1.1;margin-top:4px;letter-spacing:2px}
   #hearts .h{color:#ff4d6d;display:inline-flex;flex-direction:column;align-items:center;vertical-align:top;margin-right:3px}#hearts .h.off{color:rgba(255,255,255,.35)}
   #hearts .h.part{color:#ff9fb2}
+  #hitLog{position:fixed;left:max(14px,env(safe-area-inset-left));top:clamp(150px,34vh,230px);z-index:4;pointer-events:none;display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:800;color:#fff}
+  #hitLog div{background:#142c3ecc;border-left:3px solid #7ff3ff;border-radius:6px;padding:3px 8px;white-space:nowrap;animation:hlin .25s ease-out}
+  #hitLog div.heart{border-left-color:#ff4d6d}
+  #hitLog b{color:#7ff3ff;margin-right:4px}#hitLog .heart b{color:#ff4d6d}
+  #hitLog small{margin-left:6px;opacity:.6;font-size:10px}
+  @keyframes hlin{from{transform:translateX(-12px);opacity:0}}
   #hearts .h i{display:flex;gap:2px;margin-top:1px;line-height:0}
   #hearts .h i b{display:block;width:6px;height:6px;border-radius:2px;background:#7ff3ff;box-shadow:0 0 4px #7ff3ff99}
   #hearts .h i b.o{background:rgba(255,255,255,.22);box-shadow:none}
@@ -551,6 +557,7 @@ included in this distribution. Its service terms apply separately.
 <canvas id="c"></canvas>
 
 <div id="speedLines"></div>
+<div id="hitLog" hidden></div>
 <div id="hud" class="hidden">
   <div id="survivalClock">0:00</div><div id="threatLabel">SURVIVE</div><div id="score">0<small> pts</small></div>
   <div id="hearts"></div>

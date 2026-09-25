@@ -2178,11 +2178,16 @@ function fire(from, isEnemy, aimAt) {
       vz: dz * spd,
       life: isEnemy ? 1.9 : 1.1,
       enemy: isEnemy,
+      src: isEnemy ? srcName(from) : null,
       profile: shotProfile(from, isEnemy)
     })
   }
 }
 
+// who fired: shown in the hit log so every attack's damage can be checked
+function srcName(o) {
+  return o.src || (o.titan ? "TITAN" : o.ace && o.boss ? "FALCON ZERO" : o.carrier ? "LEVIATHAN" : o.boss ? "SKY FORTRESS" : o.bomber ? "BOMBER TAIL GUN" : o.squad ? "SQUADRON ACE" : o.kind === "ace" ? "ACE FIGHTER" : o.heavy ? "HEAVY FIGHTER" : o.airframe ? o.airframe.toUpperCase() : "FIGHTER");
+}
 function orb(x, y, z, dx, dy, dz, spd, life = 4.5) {
   if (bullets.length >= MAXB) return;
   const l = Math.hypot(dx, dy, dz) || 1;
@@ -2195,6 +2200,7 @@ function orb(x, y, z, dx, dy, dz, spd, life = 4.5) {
     vz: dz / l * spd,
     life,
     enemy: !0,
+    src: "TITAN ORB",
     profile: "orb",
     r: 2.3
   })
@@ -2236,7 +2242,8 @@ function launchMissile(from, enemy) {
       life: enemy ? 6.5 : 3.5,
       trailT: 0,
       mesh: !enemy && isAlienPlane() ? makeAlienMissile(alienCol()) : makeMissile(enemy),
-      alien: !enemy && isAlienPlane() ? alienCol() : 0
+      alien: !enemy && isAlienPlane() ? alienCol() : 0,
+      src: enemy ? srcName(from) + " MISSILE" : null
     };
   return !enemy && adsK > .4 && (m.mesh.visible = !1, m.hideT = .18), scene.add(m.mesh), missiles.push(m), Sound.sfxMissile(enemy), m
 }
@@ -2339,7 +2346,7 @@ function clearInput() {
 }
 
 function clearWorld() {
-  bots.forEach(removeBot), bots = [], pickups.forEach(removePickup), pickups = [], missiles.forEach(m => scene.remove(m.mesh)), missiles = [], bullets = [], parts = [], decoys = [], boss && scene.remove(boss.mesh), turrets = turrets.filter(t => t.carrier ? (scene.remove(t.mesh), !1) : !0), dirPhase === "wave" && endWave(), clearMines(), resetRun(), resetHazards(), dirPhase = "none", wv = {}, boss = null, bossWarnT = 0, combo = 0, comboT = 0, $("bossBar").classList.add("hidden"), $("bossBar").classList.remove("titan", "ace", "shield"), $("bossWarn").classList.add("hidden"), $("combo").classList.add("hidden"), hideCine(), slowT = 0, slowScale = 1, clearPopups(), hideTip(), clearHitFx()
+  bots.forEach(removeBot), bots = [], pickups.forEach(removePickup), pickups = [], missiles.forEach(m => scene.remove(m.mesh)), missiles = [], bullets = [], parts = [], decoys = [], boss && scene.remove(boss.mesh), turrets = turrets.filter(t => t.carrier ? (scene.remove(t.mesh), !1) : !0), dirPhase === "wave" && endWave(), clearMines(), resetRun(), resetHazards(), dirPhase = "none", wv = {}, boss = null, bossWarnT = 0, combo = 0, comboT = 0, $("bossBar").classList.add("hidden"), $("bossBar").classList.remove("titan", "ace", "shield"), $("bossWarn").classList.add("hidden"), $("combo").classList.add("hidden"), hideCine(), slowT = 0, slowScale = 1, clearPopups(), clearHitLog(), hideTip(), clearHitFx()
 }
 
 function resetDemoPlane() {
@@ -2418,18 +2425,35 @@ function heartCaps() { const A = maxHp() - HEARTS, b = Math.floor(A / HEARTS), x
 function heartBase(hp = player.hp) { let c = 0; for (const cap of heartCaps()) { if (hp <= c + cap) return c; c += cap; } return c; }   // hits left below the current heart
 function heartTop(hp = player.hp) { let c = 0; for (const cap of heartCaps()) { c += cap; if (hp < c) return c; } return c; }    // current heart topped up
 const heartsLeft = () => { let c = 0, n = 0; for (const cap of heartCaps()) { if (player.hp > c) n++; c += cap; } return n; };
-function damage(whole, why) {
+function damage(whole, why, src) {
   if (player.invul > 0 || state !== "playing" || rollTime > 0) return;
   if (shieldTime > 0) {
     for (let i = 0; i < 10; i++) addPart(player.x, player.y, player.z, rand(-8, 8), rand(-8, 8), rand(-8, 8), .3, .45, 8385535, .4);
     Sound.tone(900, .08, "triangle", .08, 1400), player.invul = .25;
     return
   }
+  const h0 = player.hp, n0 = heartsLeft();
   whole ? (player.hp = heartBase(), shake = .6, popup(player.x, player.y + 3, player.z, (why ? why + " " : "") + "-1 \u2665", !0)) : player.hp--, player.invul = 1.6, shake = Math.max(shake, .35);
+  logHit(why || src || "HIT", h0 - player.hp, n0 - heartsLeft());
   const fl = $("dmgFlash");
   fl.classList.remove("hit"), fl.offsetWidth, fl.classList.add("hit"), Sound.sfxHit(), explode(player.x, player.y, player.z, .4), hitStop(.12, .3), updateHud(!0), player.hp <= 0 && crash()
 }
 
+// hit log (HUD, left): what hit you and what it cost, so enemy attack power can be checked in play
+const hitLogRows = [];
+function logHit(what, hits, hearts) {
+  const el = document.createElement("div");
+  el.innerHTML = `<b>${hearts ? "-" + hearts + " \u2665" : "-" + hits + " ARMOR"}</b> ${String(what).replace(/[!]+$/, "")}<small>${player.hp}/${maxHp()}</small>`;
+  hearts && el.classList.add("heart");
+  $("hitLog").prepend(el), hitLogRows.unshift({ el, t: performance.now() });
+  for (; hitLogRows.length > 5;) hitLogRows.pop().el.remove();
+}
+function updateHitLog() {
+  const now = performance.now();
+  for (let i = hitLogRows.length - 1; i >= 0; i--) { const r = hitLogRows[i], age = now - r.t; age > 7e3 ? (r.el.remove(), hitLogRows.splice(i, 1)) : r.el.style.opacity = age > 5e3 ? (1 - (age - 5e3) / 2e3).toFixed(2) : ""; }
+  $("hitLog").hidden = state !== "playing" && state !== "paused" && state !== "ready";
+}
+function clearHitLog() { for (const r of hitLogRows) r.el.remove(); hitLogRows.length = 0; }
 function crash() {
   ramTime = rollTime = shieldTime = stormTime = cloakTime = 0, player.rollFx = 0, shieldMesh.visible = !1, state = "dying", dieTimer = 1.6, shake = .6, clearInput(), CG.gameplayStop(), explode(player.x, player.y, player.z, 1.2), Sound.sfxBoom(), hitStop(.7, .3), $("btnPause").classList.add("hidden"), $("btnFire").classList.add("hidden"), $("btnAds").classList.add("hidden"), $("weaponBtns").classList.add("hidden"), $("thrBtns").classList.add("hidden"), $("flt").classList.add("hidden"), $("stallWarn").hidden = !0, $("btnSpecial").classList.add("hidden"), specialHudKey = "off", $("warn").classList.add("hidden"), $("mslWarn").hidden = !0, $("lowHp").classList.remove("on"), $("bossWarn").classList.add("hidden"), hideTip()
 }
@@ -2885,7 +2909,8 @@ function updateTurrets(dt) {
         y: t.y + 1.5,
         z: t.z,
         a: 0,
-        p: 0
+        p: 0,
+        src: t.carrier ? "LEVIATHAN GUN" : "AA GUN"
       }, !0, aim), Sound.sfxEnemyShoot(), t.cd = rand(1.8, 2.8) / Math.min(1.8, 1 + lvT / 150)
     }
   }
@@ -2935,7 +2960,7 @@ function updateMissiles(dt) {
         continue
       }
       if (state === "playing" && dist3(m, player) < 2.4) {
-        explode(m.x, m.y, m.z, .8), removeMissile(m), damage();
+        explode(m.x, m.y, m.z, .8), removeMissile(m), damage(!1, null, m.src || "MISSILE");
         continue
       }
     } else {
@@ -2976,7 +3001,7 @@ function update(dt) {
       if (!b.dead && dist3(b, player) < (ramTime > 0 ? 4.8 : 3.4) * b.scale) {
         const hurt = player.invul <= 0 && ramTime <= 0;
         ramTime > 0 && (ramTime = Math.min(ramTime + .5, 4), player.ramChain = (player.ramChain || 0) + 1, player.ramChain > 1 && popup(player.x, player.y + 4, player.z, "RAM CHAIN x" + player.ramChain, !0));
-        killBot(b), hurt && damage(!0, "COLLISION")
+        killBot(b), hurt && damage(!0, b.ramTime > 0 ? "ENEMY RAM" : "COLLISION")
       } if (bots = bots.filter(b => !b.dead), boss && !boss.dead && bossDist(player) < .5 && player.invul <= 0 && (ramTime > 0 ? (hitBoss(8, player), player.invul = .8, shake = .3) : damage(!0, "COLLISION")), updateBoss(dt, !0), updateCombo(dt), updateTips(dt), player.trailT -= dt, player.trailT <= 0) {
       const f = fwdOf(player);
       player.trailT = .05, addPart(player.x - f[0] * 2.6, player.y - f[1] * 2.6, player.z - f[2] * 2.6, 0, .5, 0, .55, .5, 16777215, .8)
@@ -2993,7 +3018,7 @@ function update(dt) {
   }
   if (state === "playing" || state === "dying" || state === "over") {
     for (const b of bullets)
-      if (b.x += b.vx * dt, b.y += b.vy * dt, b.z += b.vz * dt, b.life -= dt, b.y < floorY() + .3 && (b.life = 0), b.enemy) state === "playing" && dist3(b, player) < (b.r || 1.9) + (shieldTime > 0 ? 1.4 : 0) && (shieldTime > 0 ? (b.enemy = !1, b.refl = 1, b.vx *= -1.3, b.vy *= -1.3, b.vz *= -1.3, b.life = 1.4, Sound.tone(1500, .05, "triangle", .05, 2200)) : (b.life = 0, damage()));
+      if (b.x += b.vx * dt, b.y += b.vy * dt, b.z += b.vz * dt, b.life -= dt, b.y < floorY() + .3 && (b.life = 0), b.enemy) state === "playing" && dist3(b, player) < (b.r || 1.9) + (shieldTime > 0 ? 1.4 : 0) && (shieldTime > 0 ? (b.enemy = !1, b.refl = 1, b.vx *= -1.3, b.vy *= -1.3, b.vz *= -1.3, b.life = 1.4, Sound.tone(1500, .05, "triangle", .05, 2200)) : (b.life = 0, damage(!1, null, b.src || "BULLET")));
       else {
         for (const bot of bots)
           if (!bot.dead && dist3(b, bot) < 2.5 * bot.scale) {
@@ -3422,7 +3447,7 @@ function updateAimUI() {
     q.hidden = !1, q.className = "pk " + pk.type, q.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px)`
   }
   for (; n < PICKS.length; n++) PICKS[n].hidden = !0;
-  steerKnob.style.transform = `translate(${(steerNow*22).toFixed(1)}px,${(-climbNow*22).toFixed(1)}px)`, updatePopups()
+  steerKnob.style.transform = `translate(${(steerNow*22).toFixed(1)}px,${(-climbNow*22).toFixed(1)}px)`, updatePopups(), updateHitLog()
 }
 
 function syncInstances() {
@@ -3924,6 +3949,7 @@ function fireRear(from, enemy, count, tag) {
       vz: dz * v,
       life: 1.5,
       enemy,
+      src: enemy ? srcName(from) + " REAR GUN" : null,
       rearTag: tag || 0,
       profile: shotProfile(from, enemy)
     })
@@ -4830,7 +4856,8 @@ function updateBoss(dt, hostile) {
           y: wy,
           z: wz,
           a: 0,
-          p: 0
+          p: 0,
+          src: "FORTRESS GUN"
         }, !0, {
           x: player.x + f[0] * ps * lead + rand(-1.8, 1.8),
           y: player.y + f[1] * ps * lead + rand(-1.2, 1.2),
@@ -4838,6 +4865,7 @@ function updateBoss(dt, hostile) {
         }), Sound.sfxEnemyShoot()
       }
     }), hostile && player.alive && state === "playing" && !playerHidden() && (B.mslCd -= dt * rate, B.mslCd <= 0 && d > 25 && d < 110 && missiles.filter(m => m.enemy && !m.dead).length <= 3 && (launchMissile({
+      src: "FORTRESS",
       x: B.x,
       y: B.y - 4,
       z: B.z,
@@ -5103,7 +5131,8 @@ function updateTitan(dt, hostile) {
             z: wz,
             a: 0,
             p: 0,
-            airframe: "lancer"
+            airframe: "lancer",
+            src: "TITAN GUN"
           }, !0, {
             x: player.x + f[0] * ps * lead + rand(-2, 2),
             y: player.y + f[1] * ps * lead + rand(-1.4, 1.4),
@@ -5139,6 +5168,7 @@ function updateTitan(dt, hostile) {
         for (let i = 0; i < count; i++) {
           const sd = (i - (count - 1) / 2) * 9 * k;
           launchMissile({
+            src: "TITAN",
             x: B.x - sa * sd,
             y: B.y - 2,
             z: B.z + ca * sd,
@@ -5520,7 +5550,7 @@ function updateAce(dt, hostile) {
       cpr = Math.cos(B.ramPitch);
     B.ramHeading += clamp(wrapA(Math.atan2(player.z - B.z, player.x - B.x) - B.ramHeading), -.9 * dt, .9 * dt), B.a = B.ramHeading, B.p = B.ramPitch, B.roll = lerp(B.roll, 0, dt * 6), B.x += Math.cos(B.a) * cpr * rs * dt, B.z += Math.sin(B.a) * cpr * rs * dt, B.y = clamp(B.y + Math.sin(B.p) * rs * dt, ALT_MIN, ALT_MAX);
     for (const sd of [-1, 1]) addPart(B.x - Math.sin(B.a) * sd * 3, B.y, B.z + Math.cos(B.a) * sd * 3, 0, 0, 0, .4, .8, 16735370, 1);
-    state === "playing" && dist3(B, player) < 6.5 && player.invul <= 0 && (damage(), shockwave(player.x, player.y, player.z, 14, 16723285, .35), B.ramT = 0, B.breakCd = 0), B.ramT <= 0 && (B.dodgeDir = Math.random() < .5 ? -1 : 1), animateExhaust(B, !0, dt), orientPlane(B, dt);
+    state === "playing" && dist3(B, player) < 6.5 && player.invul <= 0 && (damage(!1, null, "FALCON ZERO RAM"), shockwave(player.x, player.y, player.z, 14, 16723285, .35), B.ramT = 0, B.breakCd = 0), B.ramT <= 0 && (B.dodgeDir = Math.random() < .5 ? -1 : 1), animateExhaust(B, !0, dt), orientPlane(B, dt);
     return
   } else engaged && state === "playing" && B.intro <= 0 && B.cloakT <= 0 && B.dodgeT <= 0 && B.ramCd <= 0 && d > 30 && d < 95 && (B.ramCd = ph2 ? 13 : 17, B.ramCharge = 1.3, banner("SHIELD RAM", "GET OUT OF THE WAY", "#ff2d55"), Sound.sfxSiren(), popup(B.x, B.y + 3, B.z, "RAM INCOMING"));
   if (B.cloakT > 0) B.cloakT -= dt, B.lock = 0, Math.random() < dt * 10 && addPart(B.x + rand(-3, 3), B.y + rand(-1.5, 1.5), B.z + rand(-3, 3), 0, 0, 0, .35, .35, 11967999, .5), ud.cloak = !0, B.cloakT <= 0 && (ud.cloak = !1, B.mesh.visible = !0, shockwave(B.x, B.y, B.z, 14, 11967999, .4), Sound.tone(200, .4, "sine", .12, 900), popup(B.x, B.y + 3, B.z, "AMBUSH!"), B.fireCd = 0, B.burst = 0);
@@ -5576,7 +5606,7 @@ function updateAce(dt, hostile) {
     if (B.mslCd <= 0 && d > 30 && d < 100 && off < .9 && (launchMissile(B, !0), B.mslCd = rand(12, 16), popup(B.x, B.y + 3, B.z, "FOX TWO")), ph2 && B.sonicCd <= 0 && d < 24) {
       B.sonicCd = 9, shockwave(B.x, B.y, B.z, 30, 14677759, .5), ring(B.x, B.y, B.z, 30, 14677759, 40, 55);
       for (const b of bullets) !b.enemy && dist3(b, B) < 32 && (b.life = 0);
-      d < 13 && damage(), shake = Math.max(shake, .35), Sound.sfxBoom(), Sound.tone(90, .6, "sine", .3, 30), popup(B.x, B.y + 3, B.z, "SONIC BOOM")
+      d < 13 && damage(!1, null, "SONIC BOOM"), shake = Math.max(shake, .35), Sound.sfxBoom(), Sound.tone(90, .6, "sine", .3, 30), popup(B.x, B.y + 3, B.z, "SONIC BOOM")
     }
   }
   if (B.trailT -= dt, B.trailT <= 0) {
@@ -5979,7 +6009,7 @@ function updateCarrier(dt, hostile) {
   for (const L of S.lasers) {   // laser curtains: 1.6s on / 1.6s off, blinking warning first
     L.t = (L.t + dt) % 3.2; const on = L.t < 1.6, warn = L.t > 2.9;
     L.on = on; L.grp.visible = on || (warn && Math.floor(time * 16) % 2 === 0); L.mat.opacity = on ? 0.9 : 0.35;
-    if (on && pc && pc[0] === L.i && pc[1] === L.j && state === 'playing' && player.invul <= 0) { damage(); popup(player.x, player.y + 2, player.z, 'LASER!'); }
+    if (on && pc && pc[0] === L.i && pc[1] === L.j && state === 'playing' && player.invul <= 0) { damage(!1, null, 'LASER'); popup(player.x, player.y + 2, player.z, 'LASER!'); }
   }
   // core visuals
   if (B.core && !B.core.dead) { const h = B.core.mesh.userData.head; h.rotation.y += dt * 0.8; h.rotation.x += dt * 0.5; }
@@ -5992,7 +6022,7 @@ function updateCarrier(dt, hostile) {
     if (Math.floor(S.escapeT) !== Math.floor(S.escapeT + dt)) Sound.tone(S.escapeT < 10 ? 1200 : 800, 0.08, 'square', 0.06);
     if (Math.random() < dt * 8) { const l = dnLocal(player); const w = dnWorld(l.x + rand(-80, 80), rand(-DN.DECK, DN.DECK), l.z + rand(-80, 80)); explode(w.x, w.y, w.z, 1.2); shake = Math.max(shake, 0.2); }
     if (!inside && state === 'playing') { killCarrier(); return; }
-    if (S.escapeT <= 0 && state === 'playing') { S.escapeT = 0; revived = true; rollTime = shieldTime = 0; player.hp = 1; player.invul = 0; damage(); banner('CAUGHT IN THE BLAST', '', '#ff2d55'); return; }
+    if (S.escapeT <= 0 && state === 'playing') { S.escapeT = 0; revived = true; rollTime = shieldTime = 0; player.hp = 1; player.invul = 0; damage(!1, null, 'CORE BLAST'); banner('CAUGHT IN THE BLAST', '', '#ff2d55'); return; }
   }
   // enemy activity
   const act = hostile && player.alive && state === 'playing' && !playerHidden() && !(B.intro > 0);
@@ -6580,7 +6610,7 @@ function clearMines() {
 function updateMines(dt) {
   for (const m of mines)
     if (m.t -= dt, m.mesh.position.set(m.x, m.y, m.z), m.mesh.visible = m.t > .5 || Math.floor(m.t * 16) % 2 === 0, !(m.t > 0)) {
-      shockwave(m.x, m.y, m.z, 36, 10476799, .75), shockwave(m.x, m.y, m.z, 22, 16777215, .5), Sound.tone(60, 1.1, "sine", .35, 30, .08), Sound.tone(1800, .9, "sine", .05, 900, .08), Sound.noise(.8, .25, 700, .08), shake = Math.max(shake, dist3(m, player) < 40 ? .4 : .15), state === "playing" && dist3(m, player) < 17 && damage();
+      shockwave(m.x, m.y, m.z, 36, 10476799, .75), shockwave(m.x, m.y, m.z, 22, 16777215, .5), Sound.tone(60, 1.1, "sine", .35, 30, .08), Sound.tone(1800, .9, "sine", .05, 900, .08), Sound.noise(.8, .25, 700, .08), shake = Math.max(shake, dist3(m, player) < 40 ? .4 : .15), state === "playing" && dist3(m, player) < 17 && damage(!1, null, "SONIC MINE");
       for (const r of ROCKS) r.mesh.visible && dist3(m, r) < r.r + 12 && (explode(r.x, r.y, r.z, 1.3), placeRock(r, !0));
       scene.remove(m.mesh), m.dead = !0
     } mines = mines.filter(m => !m.dead)
@@ -7473,7 +7503,7 @@ function strikeBolt(b) {
   }
   scene.add(g), b.mesh = g, HZ.flash = 1;
   const dh = Math.hypot(player.x - b.x, player.z - b.z);
-  shockwave(b.x, clamp(player.y, 1, 60), b.z, 14, 12574975, .4), Sound.noise(.9, .4, 500), Sound.tone(55, 1, "sine", .3, 30), Sound.noise(.15, .25, 4e3), shake = Math.max(shake, dh < 40 ? .45 : .15), state === "playing" && dh < 7.5 && (damage(), popup(player.x, player.y + 2, player.z, "LIGHTNING!"));
+  shockwave(b.x, clamp(player.y, 1, 60), b.z, 14, 12574975, .4), Sound.noise(.9, .4, 500), Sound.tone(55, 1, "sine", .3, 30), Sound.noise(.15, .25, 4e3), shake = Math.max(shake, dh < 40 ? .45 : .15), state === "playing" && dh < 7.5 && (damage(!1, null, "LIGHTNING"), popup(player.x, player.y + 2, player.z, "LIGHTNING!"));
   for (const e of bots) !e.dead && !e.bomber && Math.hypot(e.x - b.x, e.z - b.z) < 7.5 && (popup(e.x, e.y + 3, e.z, "STRUCK!"), killBot(e))
 }
 const CP_BOSS = {
