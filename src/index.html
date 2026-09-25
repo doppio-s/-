@@ -271,6 +271,29 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #purchaseDialog{color:#edf5fa;background:#132b3b;border:1px solid #557080;border-radius:18px;padding:24px;width:min(460px,90vw);max-height:85dvh;overflow:auto;box-sizing:border-box}#purchaseDialog::backdrop{background:#03121bcc}#purchaseDialog h2{font-size:24px;margin:12px 0}#purchaseDialog p{line-height:1.5}.purchaseActions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}.purchaseActions .btn{flex:1}#confirmPurchase:disabled{opacity:.4}
 
 #purchaseDialog{margin:auto}
+#upgrade{z-index:12}
+.upWrap{display:flex;flex-direction:column;align-items:center;gap:10px;width:min(760px,96vw);color:#fff;text-align:center}
+.upWrap h2{font-size:30px;text-shadow:0 3px 0 #142c3e}.upWrap .eyebrow{color:#ffcb81}
+#upCards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%}
+.upCard{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 10px 14px;border-radius:16px;border:2px solid #9fe7e2;background:#142c3ef2;color:#fff;font-family:inherit;cursor:pointer;box-shadow:0 6px 0 #0a1a26;min-width:0}
+.upCard:hover{background:#1d3d52;transform:translateY(-3px)}
+.upCard strong{font-size:30px;color:#ffbb58;line-height:1}
+.upCard b{font-size:15px;letter-spacing:.06em}
+.upCard small{font-size:12px;color:#b6d3dd;line-height:1.4}
+.upCard em{font-style:normal;font-size:10px;letter-spacing:.14em;color:#62f5ec}
+.upCard .k{position:absolute;top:6px;left:8px;font-size:11px;color:#9fb4c0}
+.upHint{font-size:12px;color:#d6e6ee}
+.touch .upCard .k,.touch .upHint{display:none}
+@media (max-height:460px){.upWrap{gap:6px}.upWrap h2{font-size:22px}.upCard{padding:10px 6px 8px;gap:3px}.upCard strong{font-size:22px}.upCard b{font-size:12px}.upCard small{font-size:10px}}
+#stageFade{position:fixed;inset:0;z-index:9;pointer-events:none;background:#fff;opacity:0}
+#stageFade.on{animation:stfade 1.3s ease-out}
+@keyframes stfade{from{opacity:1}to{opacity:0}}
+#bossWarp{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));z-index:11;display:flex;flex-direction:column;gap:8px;width:170px;padding:10px;border-radius:14px;background:#142c3ee6;border:2px solid #ff3b5c;box-shadow:0 10px 30px #0006;text-align:left}
+#bossWarp b{color:#ff8a9c;font-size:11px;letter-spacing:.16em}
+#bossWarp .btn{width:100%;min-width:0;font-size:13px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;background:#fff}
+#bossWarp .btn small{font-size:11px;opacity:.6}
+@media (max-height:460px){#bossWarp{width:160px;padding:8px;gap:5px}#bossWarp .btn{font-size:11px;padding:5px 8px}#bossWarp b{font-size:9px}}
+#title .titleWrap{max-width:calc(93vw - 200px)}
 #novaFlash{position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;background:radial-gradient(circle at center,rgba(201,168,255,.55),rgba(105,234,255,.25) 45%,rgba(20,10,60,0) 75%)}#novaFlash.on{animation:nova .7s ease-out}@keyframes nova{from{opacity:1}to{opacity:0}}
 .abilTag{display:inline-block;font-style:normal;font-size:10px;font-weight:800;letter-spacing:.1em;color:#1f7f75;background:#e3f0eb;border-radius:6px;padding:3px 7px;margin:-6px 0 10px}
 
@@ -393,11 +416,7 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #bossBar .tick.t50{display:none}#bossBar.ace .tick.t50{display:block}
 #bossBar.ace.shield .track{box-shadow:0 0 22px #7ff3ff;border-color:#fff}#bossBar.ace.shield .fill{filter:saturate(.3) brightness(1.6)}
 #aceBadge{background:linear-gradient(90deg,#142c3e,#ff2d55);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(2deg);box-shadow:0 0 18px #ff2d5588}
-.cpRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.cpRow .eyebrow{color:#ffcb81}
-.btn.cp{font-size:14px;padding:9px 14px;min-width:0;background:#142c3ee6;color:#fff;border-color:#ff5c7a;box-shadow:0 3px 0 #ff2d55}
-.btn.cp .cpDone{color:#62f5ec}
-#btnRetryCp{font-size:17px}
+#carrierBadge{background:linear-gradient(90deg,#142c3e,#2f7fd0);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(-1deg);box-shadow:0 0 18px #69c8ff88}
 #titanBadge{background:linear-gradient(90deg,#ff2d55,#ffb13b);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(-2deg);box-shadow:0 0 18px #ff7a2d88}
 </style>
 <!-- THIRD-PARTY LICENSES
@@ -478,14 +497,19 @@ included in this distribution. Its service terms apply separately.
 <div id="title" class="screen hidden">
   <div class="titleWrap">
     <div class="eyebrow">FREE-ROAM AIR COMBAT</div><h1>FLIGHT<span>.IO</span></h1><div class="edition">SKY WORKSHOP</div><div style="background:#ff3b5c;color:#fff;font-weight:800;font-size:13px;letter-spacing:.12em;padding:5px 12px;border-radius:6px">TEST BUILD · ALL UNLOCKED</div>
-    <div class="sub" id="titleSub">Outfly the hunt. 3:00 brings the OMEGA TITAN. 5:00, the ACE.</div>
+    <div class="sub" id="titleSub">4 stages. 4 bosses. Endless skies. How far can you fly?</div>
     <button id="btnPlay" class="btn">PLAY</button>
     <div class="btnRow">
       <button id="btnGarage" class="btn green small2">GARAGE</button>
       <button id="btnDaily" class="btn pink small2">DAILY<span id="dailyBadge" class="badge" hidden>!</span></button>
     </div>
-    <div id="cpRow" class="cpRow hidden"><span class="eyebrow">CHECKPOINTS</span><button id="btnCp-titan" class="btn cp hidden"></button><button id="btnCp-ace" class="btn cp hidden"></button></div>
     <div class="bestTag">BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
+    <div id="bossWarp"><b>TEST &middot; JUMP TO BOSS</b>
+      <button class="btn small" data-warp="1">FORTRESS <small>S1</small></button>
+      <button class="btn small" data-warp="2">TITAN <small>S2</small></button>
+      <button class="btn small" data-warp="3">ACE <small>S3</small></button>
+      <button class="btn small" data-warp="4">DREADNOUGHT <small>S4</small></button>
+    </div>
     <div class="keys" id="titleKeys">Mouse or Arrow keys / WASD</div>
   </div>
 </div>
@@ -506,18 +530,17 @@ included in this distribution. Its service terms apply separately.
       <div id="newBest" class="hidden">NEW BEST!</div>
       <div id="titanBadge" class="hidden">OMEGA TITAN SLAIN</div>
       <div id="aceBadge" class="hidden">ACE FALCON ZERO DOWNED</div>
-      <div id="cpNote" class="note hidden">CHECKPOINT RUN &middot; BEST NOT RECORDED</div>
+      <div id="carrierBadge" class="hidden">IRON LEVIATHAN SUNK</div>
       <div class="coinGain"><span class="coin"></span>+<span id="finalCoins">0</span> coins &middot; total <span id="finalCoinTotal">0</span></div>
       <div class="row">
         <div class="stat"><span class="lbl">TIME</span><span class="val" id="finalTime">0s</span></div>
         <div class="stat"><span class="lbl">KILLS</span><span class="val" id="finalKills">0</span></div>
-        <div class="stat"><span class="lbl">BOSSES</span><span class="val" id="finalBosses">0</span></div>
+        <div class="stat"><span class="lbl">STAGE</span><span class="val" id="finalBosses">1</span></div>
         <div class="stat"><span class="lbl">BEST</span><span class="val" id="finalBest">0</span></div>
       </div>
     </div>
     <div class="col">
       <button id="btnRevive" class="btn pink"><span class="adTag">AD</span>CONTINUE</button>
-      <button id="btnRetryCp" class="btn green hidden"></button>
       <button id="btnAgain" class="btn">PLAY AGAIN</button>
       <button id="btnOverGarage" class="btn small">GARAGE</button>
     </div>
@@ -554,6 +577,8 @@ included in this distribution. Its service terms apply separately.
 <dialog id="audioDialog"><form method="dialog"><div class="eyebrow">COCKPIT AUDIO</div><h2>Your sound.</h2><p>Mix the soundtrack, combat and engine independently.</p><label>Music <output id="musicValue">35%</output><input id="musicVolume" type="range" min="0" max="100" value="35"></label><label>Combat &amp; interface <output id="sfxValue">80%</output><input id="sfxVolume" type="range" min="0" max="100" value="80"></label><label>Engine <output id="engineValue">45%</output><input id="engineVolume" type="range" min="0" max="100" value="45"></label><button id="btnTestWeapon" class="btn small" type="button">TEST WEAPON SOUND</button><button class="btn" value="close">DONE</button></form></dialog>
 
 <div id="rotateNotice" role="status"><div class="rotatePhone" aria-hidden="true">&#8635;</div><div class="eyebrow">FLIGHT.IO</div><h2>Rotate to fly</h2><p>Turn your phone sideways to play.</p></div>
+<div id="upgrade" class="screen dim hidden"><div class="upWrap"><div class="eyebrow" id="upTitle">WAVE CLEAR</div><h2>Choose an upgrade</h2><div id="upCards"></div><p class="upHint">This run only &middot; keys 1 / 2 / 3</p></div></div>
+<div id="stageFade"></div>
 <div id="toast"></div>
 <div id="loading">Loading&hellip;</div>
 

@@ -1,10 +1,9 @@
-
 // =================== FINAL DUEL: ACE "FALCON ZERO" (5:00) ===================
 // A single elite Falcon pilot: rolls out of your bullet streams, flares your missiles,
 // throws up a shield when you land hits, breaks your lock and hunts your six.
 function updateAceFlow(dt) {
   if (acePhase === 'none') {
-    if (gameTime < ACE_AT - 5 || titanLock()) return;   // the titan must be dealt with first
+    return;   // started by the stage director
     if (!aceWarned) {
       aceWarned = true;
       $('bossWarn').innerHTML = '<small>WARNING &middot; 5:00</small>ACE PILOT INBOUND';
@@ -19,7 +18,6 @@ function updateAceFlow(dt) {
 }
 function startAceIntro() {
   acePhase = 'intro'; aceT = 3;
-  reachCheckpoint('ace');
   $('bossWarn').classList.add('hidden'); bossWarnT = 0;
   let n = 0;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 1.1); removeBot(b); n++; }
@@ -31,12 +29,12 @@ function startAceIntro() {
   missiles = missiles.filter(m => !m.dead);
   bullets = bullets.filter(b => !b.enemy);
   if (n) { killPts += n * 100; popup(player.x, player.y + 4, player.z, 'SKY CLEARED +' + n * 100, true); }
-  Object.assign(player, { hp: maxHp(), ammo: maxAmmo(), missiles: Math.min(9, Math.max(player.missiles, 6)), flares: Math.min(9, player.flares + 3), invul: 4 });
+  Object.assign(player, { hp: maxHp(), ammo: maxAmmo(), missiles: Math.min(maxMsl(), Math.max(player.missiles, 6)), flares: Math.min(maxFlr(), player.flares + 3), invul: 4 });
   shockwave(player.x, player.y, player.z, 110, 0xffffff, 1);
   shockwave(player.x, player.y, player.z, 70, 0x62f5ec, 0.8);
   shake = 0.5; hitStop(0.9, 0.2); killFlash();
   Sound.sfxBoom(); Sound.sfxSiren();
-  setCine('FINAL DUEL &middot; 5:00', 'FALCON ZERO', 'THE DEADLIEST ACE IN THE SKY &mdash; ONE ON ONE');
+  setCine('STAGE ' + stage + ' &middot; BOSS', 'FALCON ZERO', 'A DUEL IN THE ASTEROID FIELD &mdash; ONE ON ONE');
   showCine(); updateHud(true);
 }
 function makeAce() {
@@ -61,7 +59,7 @@ function spawnAce() {
   boss = { x, y: clampAlt(player.y + 6), z, a: Math.atan2(player.z - z, player.x - x), p: 0, roll: 0, rollFx: 0, hp, max: hp, scale: 1.3, ace: true, boss: true,
     pts: 15000, phase: 1, intro: 1.8, fireCd: 2, burst: 0, burstT: 0, mslCd: 8, sonicCd: 6,
     dodgeT: 0, dodgeCd: 0, dodgeDir: 1, dodges: 0, flares: 4, flareCd: 0, flareRegen: 12,
-    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 24, tailT: 0, extendT: 0, extendA: 0, extendUp: 0, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
+    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 14, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
   scene.add(boss.mesh);
   $('bossName').textContent = 'ACE · FALCON ZERO';
   $('bossFill').style.width = '100%';
@@ -91,10 +89,6 @@ function aceBlocks(at) {
 function aceDamaged(dmg) {
   const B = boss;
   B.dmgWin += dmg;
-  if (B.cloakT > 0) {   // any hit breaks the cloak
-    B.cloakT = 0; B.mesh.visible = true;
-    shockwave(B.x, B.y, B.z, 12, 0xb69dff, 0.35); popup(B.x, B.y + 3, B.z, 'REVEALED'); Sound.tone(600, 0.15, 'square', 0.06, 300);
-  }
   if (B.phase === 1 && B.hp <= B.max / 2) {
     B.phase = 2; $('bossName').textContent = 'ACE · FALCON ZERO · UNLEASHED';
     banner('UNLEASHED', 'FALCON ZERO STOPS HOLDING BACK', '#ff2d55');
@@ -129,9 +123,8 @@ function updateAce(dt, hostile) {
     if (B.dying <= 0 || B.y < 1) {
       explode(B.x, Math.max(B.y, 1), B.z, 3); shockwave(B.x, Math.max(B.y, 1), B.z, 60, 0xffffff, 0.9); shockwave(B.x, Math.max(B.y, 1), B.z, 35, 0xff2d55, 0.7);
       shake = 0.7; killFlash(); Sound.sfxBoom();
-      if (state === 'playing') { spawnPickup('heart'); spawnPickup('missile'); spawnPickup('ammo'); }
+      if (state === 'playing') { spawnPickup('missile'); spawnPickup('ammo'); }
       scene.remove(B.mesh); boss = null; acePhase = 'done';
-      banner('SKY OWNED', 'THE HUNT RESUMES', '#62f5ec');
       return;
     }
     orientPlane(B, dt); return;
@@ -149,6 +142,8 @@ function updateAce(dt, hostile) {
   const pf = fwdOf(player), dx = player.x - B.x, dy = player.y - B.y, dz = player.z - B.z, d = Math.hypot(dx, dy, dz) || 1;
   const toMe = -(pf[0] * dx + pf[1] * dy + pf[2] * dz) / d;   // >0: the ace is in front of the player's guns
   const engaged = hostile && player.alive && !playerHidden();
+  B.mineCd = (B.mineCd ?? 4) - dt;
+  if (engaged && state === 'playing' && B.intro <= 0 && B.mineCd <= 0 && toMe > 0.45 && d < 75 && !(B.cloakT > 0)) { B.mineCd = ph2 ? 5 : 7; dropMine(B); }
 
   // --- evasion: roll out of any bullet stream about to connect ---
   if (B.dodgeT > 0) {
@@ -227,23 +222,16 @@ function updateAce(dt, hostile) {
       shockwave(B.x, B.y, B.z, 14, 0xb69dff, 0.4); Sound.tone(200, 0.4, 'sine', 0.12, 900);
       popup(B.x, B.y + 3, B.z, 'AMBUSH!'); B.fireCd = 0; B.burst = 0;
     }
-  } else if (engaged && state === 'playing' && B.intro <= 0 && B.ramCharge <= 0 && B.cloakCd <= 0 && (toMe > 0.5 || B.hp < B.max * 0.75)) {
-    B.cloakT = ph2 ? 2.8 : 2.2; B.cloakCd = ph2 ? 20 : 26; B.lock = 0;
+  } else if (engaged && state === 'playing' && B.intro <= 0 && B.ramCharge <= 0 && B.cloakCd <= 0 && (toMe > 0.5 || B.hp < B.max * 0.75 || d > 55)) {
+    B.cloakT = ph2 ? 4 : 3.2; B.cloakCd = ph2 ? 13 : 18; B.lock = 0;
     for (const m of missiles) if (!m.enemy && m.target === B) { m.target = null; m.sure = false; }
     shockwave(B.x, B.y, B.z, 12, 0xb69dff, 0.4); Sound.tone(900, 0.5, 'sine', 0.08, 200);
     popup(B.x, B.y + 3, B.z, 'CLOAKED'); toast('FALCON ZERO VANISHED — WATCH YOUR SIX');
   }
-  B.mesh.visible = !(B.cloakT > 0) || Math.floor(time * 8) % 4 === 0;   // steady shimmer gives it away
+  B.mesh.visible = !(B.cloakT > 0) || Math.random() < 0.04;   // rare shimmer gives it away
   // --- flight: hunt the player's six; weave hard whenever it's in the player's sights ---
   const baseSpd = playerSpeed() / (ramTime > 0 ? 1.65 : 1);
   let tx, ty, tz, spd;
-  // don't camp the player's six: after a few seconds on the tail, extend away and come back from a new angle
-  const onTail = engaged && toMe < -0.3 && d < 60 && !(B.cloakT > 0);
-  if (B.extendT > 0) B.extendT -= dt;
-  else if (onTail) {
-    B.tailT += dt;
-    if (B.tailT > (ph2 ? 3.8 : 2.8)) { B.tailT = 0; B.extendT = rand(2.8, 3.8); B.extendA = B.a + (Math.random() < 0.5 ? -1 : 1) * rand(0.7, 1.1); B.extendUp = rand(-12, 14); }
-  } else B.tailT = Math.max(0, B.tailT - dt * 0.5);
   B.weave += dt * (ph2 ? 3.4 : 2.6);
   if (!engaged) { tx = B.x + Math.cos(B.a) * 40; tz = B.z + Math.sin(B.a) * 40; ty = B.y; spd = baseSpd; }
   else if (d < 16) {   // too close: break off to the side
@@ -251,17 +239,15 @@ function updateAce(dt, hostile) {
     tx = B.x + Math.cos(sa) * 40; tz = B.z + Math.sin(sa) * 40; ty = clampAlt(B.y + 8); spd = baseSpd * 1.2;
   } else if (B.cloakT > 0) {   // invisible: slip in behind the player
     tx = player.x - pf[0] * 30; ty = player.y + 3; tz = player.z - pf[2] * 30; spd = baseSpd * 1.35;
-  } else if (B.extendT > 0) {   // extending: open the distance, then re-engage (often head-on)
-    tx = B.x + Math.cos(B.extendA) * 50; tz = B.z + Math.sin(B.extendA) * 50; ty = clampAlt(B.y + B.extendUp); spd = baseSpd * 1.25;
   } else if (toMe > 0.55) {   // defensive: in the crosshair → jink
     const wa = B.a + Math.sin(B.weave) * 1.1;
     tx = B.x + Math.cos(wa) * 40; tz = B.z + Math.sin(wa) * 40; ty = clampAlt(B.y + Math.cos(B.weave * 0.8) * 16);
     spd = baseSpd * (ph2 ? 1.25 : 1.15);
   } else {   // offensive: settle in behind and lead the shot
     const ps = playerSpeed(), lead = d / (botSpeed() + 30) * 0.5;
-    const behind = d > 45 ? 0 : 30;
+    const behind = d > 45 ? 0 : 22;
     tx = player.x - pf[0] * behind + pf[0] * ps * lead; ty = player.y - pf[1] * behind + pf[1] * ps * lead + 2; tz = player.z - pf[2] * behind + pf[2] * ps * lead;
-    spd = baseSpd * (d > 60 ? 1.3 : d > 45 ? 1.05 : 0.92) * (ph2 ? 1.08 : 1);   // settles slightly slower than you on the tail, so you can turn it around
+    spd = baseSpd * (d > 60 ? 1.3 : 1.05) * (ph2 ? 1.1 : 1);
   }
   tx = clamp(tx, -MAP + 20, MAP - 20); tz = clamp(tz, -MAP + 20, MAP - 20);
   let desired = Math.atan2(tz - B.z, tx - B.x);
@@ -275,7 +261,7 @@ function updateAce(dt, hostile) {
   B.x += Math.cos(B.a) * cp * spd * dt; B.z += Math.sin(B.a) * cp * spd * dt; B.y = clamp(B.y + Math.sin(B.p) * spd * dt, ALT_MIN, ALT_MAX);
 
   // --- weapons ---
-  if (engaged && state === 'playing' && B.intro <= 0 && B.cloakT <= 0 && B.ramCharge <= 0 && !(B.extendT > 0)) {
+  if (engaged && state === 'playing' && B.intro <= 0 && B.cloakT <= 0 && B.ramCharge <= 0) {
     const f = fwdOf(B), off = Math.acos(clamp((dx * f[0] + dy * f[1] + dz * f[2]) / d, -1, 1));
     if (B.burst <= 0 && B.fireCd <= 0 && d < 75 && off < 0.3) { B.burst = ph2 ? 6 : 4; B.fireCd = ph2 ? 0.9 : 1.3; }
     if (B.burst > 0 && (B.burstT -= dt) <= 0) {
@@ -310,7 +296,7 @@ function updateAce(dt, hostile) {
 function killAce() {
   const B = boss;
   B.dead = true; B.dying = 1.8; bossCount++; kills++; aceSlain = true;
-  clearCheckpoint('ace');
+  bossHeart(B, 1);
   B.mesh.userData.shield.visible = false; B.rollFx = 0; B.cloakT = 0; B.ramT = 0; B.ramCharge = 0; B.mesh.visible = true;
   awardKill(B.x, B.y + 4, B.z, B.pts, true);
   $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('ace', 'shield');
@@ -321,6 +307,6 @@ function killAce() {
   missiles = missiles.filter(m => !m.dead);
   bullets = bullets.filter(b => !b.enemy);
   garage.coins += 500; saveGarage();
-  nextBossAt = gameTime + 90;
+  nextBossAt = 1e9;
   CG.happytime();
 }

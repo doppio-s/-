@@ -25,9 +25,9 @@ page = page.replace('/*@@THREE@@*/', bundle).replace('/*@@GAME@@*/', game)
 print('wrote flight-test.html', len(page), 'bytes')
 
 # ace-duel test build: every PLAY starts at 4:52, right before FALCON ZERO arrives
-hook = "if (location.hash === '#ace') {"
+hook = "{ const hw = { '#fortress': 1, '#titan': 2, '#ace': 3, '#carrier': 4 }[location.hash];"
 assert hook in page
-ace = page.replace(hook, "if (true) {", 1).replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io TEST · ACE DUEL</title>', 1)
-ace = ace.replace('TEST BUILD · ALL UNLOCKED', 'TEST BUILD · ACE DUEL (starts at 4:52)', 1)
+ace = page.replace(hook, "{ const hw = 3;", 1).replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io TEST · ACE DUEL</title>', 1)
+ace = ace.replace('TEST BUILD · ALL UNLOCKED', 'TEST BUILD · ACE DUEL (starts at the stage 3 boss)', 1)
 (root / 'flight-ace-test.html').write_text(ace)
 print('wrote flight-ace-test.html', len(ace), 'bytes')

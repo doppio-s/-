@@ -1,4 +1,3 @@
-
 // ---------- update ----------
 let time = 0;
 function turnToward(e, desired, rate, dt) {
@@ -58,7 +57,7 @@ function updatePlayer(dt) {
     player.a = wrapA(player.a + steerNow * tr * sens * dt);
     player.roll = lerp(player.roll, clamp(steerNow * 0.8, -0.85, 0.85), Math.min(1, dt * 6));
   }
-  let tp = climbNow * 0.6 * (aiming() ? 0.6 : 1);
+  let tp = climbNow * (isSpace() ? 1.15 : 0.6) * (aiming() ? 0.6 : 1);
   if (player.y <= ALT_MIN + 1 && tp < 0) tp = 0;
   if (player.y >= ALT_MAX - 1 && tp > 0) tp = 0;
   player.p = lerp(player.p, tp, Math.min(1, dt * (3 + garage.lv.engine * 0.4)));
@@ -83,7 +82,7 @@ function updatePlayer(dt) {
   }
 }
 
-const attackLimit=()=>gameTime<90?2:3;
+const attackLimit=()=>lvT<90?2:3;
 function initEnemyTactics(b){
  b.phase='orbit';b.phaseTime=rand(2,5);b.passTime=0;b.attackSpent=false;
  b.approach=['front','left','right'][Math.floor(Math.random()*3)];b.orbitSide=b.approach==='left'?-1:b.approach==='right'?1:(Math.random()<.5?-1:1);
@@ -155,7 +154,7 @@ function updateBots(dt,hostile){
   if(Math.abs(b.x)>MAP-6||Math.abs(b.z)>MAP-6)desired=Math.atan2(-b.z,-b.x);
   else if(b.ramTime>0)desired=b.ramHeading;
   turnToward(b,desired,b.heavy?1.5:2,dt);
-  let pitch=clamp(Math.atan2(ty-b.y,Math.max(1,Math.hypot(tx-b.x,tz-b.z))),-.55,.55);
+  const pl=isSpace()?1:.55;let pitch=clamp(Math.atan2(ty-b.y,Math.max(1,Math.hypot(tx-b.x,tz-b.z))),-pl,pl);
   if(b.y<=ALT_MIN+1&&pitch<0)pitch=0;if(b.y>=ALT_MAX-1&&pitch>0)pitch=0;
   b.p=lerp(b.p,pitch,Math.min(1,dt*2.5));const cp=Math.cos(b.p);
   b.x+=Math.cos(b.a)*cp*bs*dt;b.z+=Math.sin(b.a)*cp*bs*dt;b.y=clamp(b.y+Math.sin(b.p)*bs*dt,ALT_MIN,ALT_MAX);
@@ -182,7 +181,7 @@ function hitBot(b, dmg) {
 }
 function killBot(b) {
   if (b.dead) return;
-  b.dead = true; kills++; awardKill(b.x, b.y, b.z, b.pts);
+  b.dead = true; kills++; awardKill(b.x, b.y, b.z, b.pts); waveKill();
   explode(b.x, b.y, b.z, b.heavy ? 1.6 : 1);
   if (dist3(b, player) < 60) shake = Math.max(shake, 0.16);
   removeBot(b);
@@ -193,19 +192,21 @@ function killBot(b) {
 }
 function hitTurret(t, dmg) {
   if (t.dead) return;
+  if (t.core) { hitReactor(t, dmg); return; }
   t.hp -= dmg;
   for (let i = 0; i < 6; i++) addPart(t.x, t.y, t.z, rand(-6, 6), rand(0, 8), rand(-6, 6), 0.35, 0.4, i % 2 ? 0xffe24a : 0xffffff);
   if (t.hp > 0) { Sound.tone(420, 0.06, 'square', 0.05); return; }
-  t.dead = true; kills++; awardKill(t.x, t.y, t.z, t.pts);
+  t.dead = true; kills++; awardKill(t.x, t.y, t.z, t.pts); if (!t.carrier) waveKill();
   explode(t.x, t.y, t.z, 1.4); Sound.sfxBoom();
   wreckTurret(t);
   spawnPickup('ammo', t.x, t.z, clampAlt(t.y + 12));
+  if (t.carrier) carrierPartDown();
   updateHud(true);
 }
 function wreckTurret(t) { t.mesh.userData.head.visible = false; t.mesh.children[0].material = M(0x444a55); }
 function updateTurrets(dt) {
   for (const t of turrets) {
-    if (t.dead) continue;
+    if (t.dead || t.core) continue;
     const dx = player.x - t.x, dy = player.y - t.y, dz = player.z - t.z, dh = Math.hypot(dx, dz);
     const { head, barrels } = t.mesh.userData;
     if (dh < 110) {
@@ -214,13 +215,14 @@ function updateTurrets(dt) {
     }
     t.cd -= dt;
     if (t.stun > 0) { t.stun -= dt; if (Math.random() < dt * 10) addPart(t.x, t.y + 1, t.z, rand(-2, 2), rand(1, 4), rand(-2, 2), 0.3, 0.4, 0xb69dff, 0.4); continue; }
+    if (t.noFlak) continue;
     if (state === 'playing' && player.alive && !playerHidden() && gameTime > 12 && dh < 80 && dy < 50 && t.cd <= 0) {
       // flak aimed at where the player is heading
       const f = fwdOf(player), lead = Math.hypot(dh, dy) / (botSpeed() + 30), ps = playerSpeed();
       const aim = { x: player.x + f[0] * ps * lead + rand(-2, 2), y: player.y + f[1] * ps * lead + rand(-1.5, 1.5), z: player.z + f[2] * ps * lead + rand(-2, 2) };
       fire({ x: t.x, y: t.y + 1.5, z: t.z, a: 0, p: 0 }, true, aim);
       Sound.sfxEnemyShoot();
-      t.cd = rand(1.8, 2.8) / Math.min(1.8, 1 + gameTime / 150);
+      t.cd = rand(1.8, 2.8) / Math.min(1.8, 1 + lvT / 150);
     }
   }
 }
@@ -262,12 +264,12 @@ function updateMissiles(dt) {
           removeMissile(m); break;
         }
       }
-      if (!m.dead && boss && !boss.dead && bossDist(m) < 1) {
+      if (!m.dead && boss && !boss.dead && !(m.sure && boss.carrier) && bossDist(m) < 1) {
         explode(m.x, m.y, m.z, 1); Sound.sfxBoom(); hitBoss((m.dmg || 5) * (boss.titan ? (m.sure ? 3 : 2) : 1), m); flashReticle('hit'); removeMissile(m);
       }
       if (m.dead) continue;
     }
-    if (m.life <= 0 || m.y < 0.5) { if (m.y < 0.5) addPart(m.x, 0.8, m.z, 0, 6, 0, 0.6, 1, 0xffffff, 1.5); removeMissile(m); }
+    if (m.life <= 0 || m.y < floorY() + 0.5) { if (m.y < floorY() + 0.5) addPart(m.x, 0.8, m.z, 0, 6, 0, 0.6, 1, 0xffffff, 1.5); removeMissile(m); }
   }
   missiles = missiles.filter(m => !m.dead);
   bots = bots.filter(b => !b.dead);
@@ -285,6 +287,9 @@ function updateMissiles(dt) {
 
 function update(dt) {
   time += dt;
+  updateSpace(dt);
+  updateAsteroids(dt);
+  if (state === 'playing' || state === 'dying' || state === 'over') updateMines(dt);
   seaTex.offset.x = (seaTex.offset.x + dt * 0.004) % 1;
 
   if (state === 'title' || state === 'garage' || state === 'daily') {
@@ -301,12 +306,11 @@ function update(dt) {
     updatePlayer(dt);
     updateTitanFlow(dt);
     updateAceFlow(dt);
+    updateCarrierFlow(dt);
     // forced speed-up notices
-    const lvl = Math.floor(gameTime / 20);
-    if (lvl > speedLevel && speedMul() < 2.6) { speedLevel = lvl; banner('SPEED UP', 'x' + speedMul().toFixed(1) + ' THRUST', '#62f5ec'); Sound.sfxSpeed(); }
     // enemies keep coming, more over time (none while the final boss owns the sky)
     botSpawnCd -= dt;
-    if (!duelLock() && botSpawnCd <= 0 && bots.length < (boss ? Math.min(3, maxBotsNow()) : maxBotsNow())) { spawnBot(); botSpawnCd = rand(1.2, 2.4) / (1 + gameTime / 45); }
+    updateDirector(dt);
     updateBots(dt, !playerHidden());
     updateTurrets(dt);
     updateMissiles(dt);
@@ -319,11 +323,12 @@ function update(dt) {
     if (heartCd <= 0) { heartCd = 20; if (player.hp < maxHp() && !pickups.some(p => p.type === 'heart')) spawnPickup('heart'); }
     // pickup collection
     for (const p of pickups) {
-      if (dist3(p, player) < 4) {
+      if (dist3(p, player) < 4 + 5 * run.mag) {
         p.gone = true; removePickup(p);
         if (p.type === 'ammo') { player.ammo = Math.min(maxAmmo(), player.ammo + ammoBox()); Sound.sfxAmmo(); bumpAmmo(); popup(p.x, p.y, p.z, '+' + ammoBox() + ' AMMO'); }
-        else if (p.type === 'missile') { player.missiles = Math.min(9, player.missiles + 2); player.flares = Math.min(9, player.flares + 1); Sound.sfxAmmo(); toast('+2 MISSILES  +1 FLARE'); }
-        else { player.hp = Math.min(maxHp(), player.hp + 1); Sound.sfxHeart(); popup(p.x, p.y, p.z, '+1 ♥', true); }
+        else if (p.type === 'missile') { player.missiles = Math.min(maxMsl(), player.missiles + 2); player.flares = Math.min(maxFlr(), player.flares + 1); Sound.sfxAmmo(); toast('+2 MISSILES  +1 FLARE'); }
+        else if (player.hp < maxHp()) { player.hp++; Sound.sfxHeart(); popup(p.x, p.y, p.z, '+1 ♥', true); }
+        else { killPts += 500; Sound.sfxHeart(); popup(p.x, p.y, p.z, 'FULL HP +500', true); }
         for (let i = 0; i < 16; i++) addPart(p.x, p.y, p.z, rand(-10, 10), rand(-2, 10), rand(-10, 10), 0.55, 0.4, p.type === 'ammo' ? 0xffe24a : p.type === 'missile' ? 0xff5c5c : 0xff7a9c);
         shockwave(p.x, p.y, p.z, 5, p.type === 'ammo' ? 0xffe24a : p.type === 'missile' ? 0xff5c5c : 0xff7a9c, 0.35);
         updateHud(true);
@@ -352,7 +357,7 @@ function update(dt) {
       player.y -= dt * (10 + Math.max(0, fallT) * 40);
       player.roll += dt * 9; player.p = lerp(player.p, -0.9, dt * 2);
       if (Math.random() < 0.5) addPart(player.x, player.y, player.z, rand(-1, 1), 2, rand(-1, 1), 0.9, rand(0.8, 1.3), 0x55556a, 1.4);
-      if (player.y <= 0.8) {
+      if (player.y <= floorY() + 0.8 || (isSpace() && fallT > 1.3)) {
         player.alive = false; player.mesh.visible = false;
         for (let i = 0; i < 30; i++) addPart(player.x, 0.8, player.z, rand(-7, 7), rand(6, 16), rand(-7, 7), rand(0.5, 1), rand(0.5, 1), i % 2 ? 0xffffff : 0x9fe0ff);
       }
@@ -368,7 +373,7 @@ function update(dt) {
   if (state === 'playing' || state === 'dying' || state === 'over') {
     for (const b of bullets) {
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.life -= dt;
-      if (b.y < 0.3) b.life = 0;
+      if (b.y < floorY() + 0.3) b.life = 0;
       if (b.enemy) {
         if (state === 'playing' && dist3(b, player) < (b.r || 1.9)) { b.life = 0; damage(); }
       } else {
@@ -388,6 +393,12 @@ function update(dt) {
   // pickups animation
   for (const p of pickups) {
     p.t += dt;
+    if (state === 'playing' && ((p.magnet && (p.mt = (p.mt || 0) + dt) > 0.7) || (run.mag && dist3(p, player) < 14 + 16 * run.mag))) {   // boss hearts fly to you
+      const dx = player.x - p.x, dy = player.y - p.y, dz = player.z - p.z, dl = Math.hypot(dx, dy, dz) || 1, v = Math.max(45, playerSpeed() * 1.6) * dt;
+      p.x += dx / dl * Math.min(v, dl); p.y += dy / dl * Math.min(v, dl); p.z += dz / dl * Math.min(v, dl);
+      p.mesh.position.set(p.x, p.y, p.z);
+      if (Math.random() < 0.5) addPart(p.x, p.y, p.z, 0, 0, 0, 0.35, 0.5, 0xff7a9c, 0.5);
+    }
     p.mesh.userData.inner.rotation.y = p.t * 1.6;
     p.mesh.userData.inner.position.y = Math.sin(p.t * 3) * 0.4;
     p.mesh.userData.ring.scale.setScalar(2.2 + Math.sin(p.t * 4) * 0.25);
@@ -425,7 +436,7 @@ function updateCamera(dt) {
     const cp = Math.cos(camP * 0.8), spp = Math.sin(camP * 0.8);
     const fx = Math.cos(camA) * cp, fy = spp, fz = Math.sin(camA) * cp, lx = Math.sin(camA), lz = -Math.cos(camA);   // forward / left
     const B = lerp(15 * camK, -1.2, adsK), L = lerp(5.5 * camK, 0, adsK), U = lerp(5.8 * camK, 0.9, adsK);   // ADS = cockpit view
-    camPos.set(player.x - fx * B + lx * L, Math.max(2.5, player.y - fy * B + U), player.z - fz * B + lz * L);
+    camPos.set(player.x - fx * B + lx * L, Math.max(isSpace() ? -1e9 : 2.5, player.y - fy * B + U), player.z - fz * B + lz * L);
     const lf = [Math.cos(camA) * Math.cos(camP), Math.sin(camP), Math.sin(camA) * Math.cos(camP)];
     camLook.set(player.x + lf[0] * 40 + lx * 1.5 * (1 - adsK), player.y + lf[1] * 40 + 1.2 * (1 - adsK), player.z + lf[2] * 40 + lz * 1.5 * (1 - adsK));
   } else {
@@ -437,8 +448,9 @@ function updateCamera(dt) {
   if (shake > 0) camera.position.add(_v.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(shake * 1.2));
   camera.lookAt(camLook);
   const fx = Math.cos(camA), fz = Math.sin(camA);
-  sun.target.position.set(player.x + fx * 35, 0, player.z + fz * 35);
-  sun.position.set(sun.target.position.x + 30, 90, sun.target.position.z + 25);
+  const sy = isSpace() ? player.y : 0;
+  sun.target.position.set(player.x + fx * 35, sy, player.z + fz * 35);
+  sun.position.set(sun.target.position.x + 30, sy + 90, sun.target.position.z + 25);
 }
 
 // ---------- aim UI: crosshair, enemy / turret / missile markers, off-screen arrows, steering pad ----------
@@ -468,7 +480,7 @@ function updateAimUI() {
   // markers: enemy planes, turrets in range, missiles chasing you
   const list = [];
   for (const b of bots) if (Math.hypot(b.x - player.x, b.z - player.z) < 170) list.push({ o: b, cls: b.kind === 'ace' ? 'ace' : '', lbl: b.airframe ? (b.specialCharge > 0 ? 'CHARGING ' : b.airframe.toUpperCase() + ' ') : b.kind === 'ace' ? 'ACE ' : b.heavy ? 'HEAVY ' : '' });
-  for (const t of turrets) if (!t.dead && Math.hypot(t.x - player.x, t.z - player.z) < 110) list.push({ o: t, cls: 'tur', lbl: 'AA ', noArrow: true });
+  for (const t of turrets) if (!t.dead && (t.core ? boss && boss.phase === 2 : Math.hypot(t.x - player.x, t.z - player.z) < 110)) list.push(t.core ? { o: t, cls: 'boss', lbl: 'REACTOR ' } : { o: t, cls: 'tur', lbl: t.launcher ? 'SAM ' : 'AA ', noArrow: true });
   for (const m of missiles) if (m.enemy && m.target === player) list.push({ o: m, cls: 'msl', lbl: 'MISSILE ' });
   if (boss && !boss.dead && !(boss.cloakT > 0)) list.unshift({ o: boss, cls: 'boss', lbl: boss.titan ? 'TITAN ' : boss.ace ? (boss.ramCharge > 0 || boss.ramT > 0 ? 'RAM! ' : boss.shieldT > 0 ? 'SHIELD ' : 'ACE ') : 'BOSS ' });
   let n = 0;
@@ -737,9 +749,6 @@ function onBtn(id, fn) {
   $(id).addEventListener('pointerdown', e => e.stopPropagation());
 }
 onBtn('btnPlay', () => { if (state !== 'title') return; Sound.sfxClick(); startRun(); });
-onBtn('btnCp-titan', () => { if (state !== 'title') return; Sound.sfxClick(); startRun('titan'); });
-onBtn('btnCp-ace', () => { if (state !== 'title') return; Sound.sfxClick(); startRun('ace'); });
-onBtn('btnRetryCp', () => { if (state !== 'over' || busy) return; Sound.sfxClick(); startRun(runReached || runCheckpoint); });
 onBtn('btnGarage', () => { if (state !== 'title') return; Sound.sfxClick(); openGarage(); });
 onBtn('btnDaily', () => { if (state !== 'title') return; Sound.sfxClick(); openDaily(); });
 onBtn('btnClaim', () => { Sound.sfxClick(); claimDaily(); });
@@ -777,3 +786,4 @@ onBtn('btnAgain', async () => {
   }
   startRun();
 });
+

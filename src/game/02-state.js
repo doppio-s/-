@@ -1,9 +1,8 @@
-
 // ---------- game state ----------
 // states: loading, title, garage, daily, ready, playing, dying, over, paused
 let state = 'loading', best = 0, revived = false, busy = false, lastAdTime = 0;
 let gameTime = 0, kills = 0, killPts = 0, shake = 0, dieTimer = 0, speedLevel = 0, emptyToastT = 0, emptySfxT = 0, runCoinsGiven = 0;
-const ALT_MIN = 7, ALT_MAX = 70;
+let ALT_MIN = 7, ALT_MAX = 70;
 // final boss: at 3:00 every enemy is wiped out and the OMEGA TITAN arrives
 const TITAN_AT = 180;
 let titanPhase = 'none', titanT = 0, titanWarned = false, titanSlain = false, supplyT = 14;
@@ -12,28 +11,7 @@ const titanLock = () => titanPhase === 'intro' || titanPhase === 'fight';
 const ACE_AT = 300;
 let acePhase = 'none', aceT = 0, aceWarned = false, aceSlain = false;
 const aceLock = () => acePhase === 'intro' || acePhase === 'fight';
-const duelLock = () => titanLock() || aceLock();
-// checkpoints: each boss fight is recorded once reached (1) and once beaten (2); runs can start from them
-const CHECKPOINTS = { titan: { at: TITAN_AT, name: 'OMEGA TITAN', clock: '3:00' }, ace: { at: ACE_AT, name: 'FALCON ZERO', clock: '5:00' } };
-const checkpoints = { titan: 0, ace: 0 };
-let runCheckpoint = null, runReached = null, runStartScore = 0;
-function loadCheckpoints(raw) { try { const c = JSON.parse(raw || '{}'); for (const k of Object.keys(checkpoints)) if (Number.isInteger(c[k])) checkpoints[k] = clamp(c[k], 0, 2); } catch (e) {} }
-const saveCheckpoints = () => Store.set('checkpoints', JSON.stringify(checkpoints));
-function reachCheckpoint(id) {
-  runReached = id;
-  if (checkpoints[id] < 1) { checkpoints[id] = 1; saveCheckpoints(); }
-  toast('CHECKPOINT SAVED \u00b7 ' + CHECKPOINTS[id].clock + ' ' + CHECKPOINTS[id].name);
-}
-function clearCheckpoint(id) { if (checkpoints[id] < 2) { checkpoints[id] = 2; saveCheckpoints(); } }
-function renderCheckpoints() {
-  const any = Object.values(checkpoints).some(v => v > 0);
-  $('cpRow').classList.toggle('hidden', !any);
-  for (const id of Object.keys(CHECKPOINTS)) {
-    const b = $('btnCp-' + id), c = CHECKPOINTS[id];
-    b.classList.toggle('hidden', !checkpoints[id]);
-    b.innerHTML = `&#9654; ${c.clock} ${c.name}${checkpoints[id] >= 2 ? ' <span class="cpDone">&#10003;</span>' : ''}`;
-  }
-}
+const duelLock = () => titanLock() || aceLock() || (typeof carrierLock === 'function' && carrierLock());
 // hit-stop / slow motion (real-time duration, game-time scale)
 let slowT = 0, slowScale = 1;
 function hitStop(dur, scale) {
@@ -156,15 +134,16 @@ function loadGarage(raw) {
 const saveGarage = () => Store.set('garage', JSON.stringify(garage));
 const planeNow = () => PLANES.find(p => p.id === garage.plane) || PLANES[0];
 const paintNow = () => PAINTS.find(p => p.id === garage.paint) || PAINTS[0];
-const maxHp = () => Math.max(1, 3 + garage.lv.armor + planeNow().hp + partStats().hp);
-const maxAmmo = () => 40 + 10 * garage.lv.ammo;
+const maxHp = () => Math.max(1, 3 + garage.lv.armor + planeNow().hp + partStats().hp + run.hp);
+const maxAmmo = () => Math.round((40 + 10 * garage.lv.ammo) * (1 + 0.5 * run.ammo));
 const startAmmo = () => 12 + 6 * garage.lv.ammo;
-const ammoBox = () => 8 + 2 * garage.lv.ammo;
+const ammoBox = () => Math.round((8 + 2 * garage.lv.ammo) * (1 + 0.5 * run.ammo));
+const maxMsl = () => 9 + 2 * run.msl, maxFlr = () => 9 + 3 * run.flare;
 const startMissiles = () => planeNow().missiles + Math.floor(garage.lv.ammo / 2);
 const startFlares = () => 3 + Math.floor(garage.lv.ammo / 2);
-const turnRate = () => 2.7 * (1 + 0.1 * garage.lv.engine) * planeNow().turn * partStats().turn;
-const fireGap = () => 0.15 / ((1 + 0.15 * garage.lv.guns) * planeNow().fire * partStats().fire);
-const gunDmg = () => (1 + 0.5 * garage.lv.power) * partStats().damage;
+const turnRate = () => 2.7 * (1 + 0.1 * garage.lv.engine) * planeNow().turn * partStats().turn * (1 + 0.1 * run.spd);
+const fireGap = () => 0.15 / ((1 + 0.15 * garage.lv.guns) * planeNow().fire * partStats().fire * (1 + 0.2 * run.fire));
+const gunDmg = () => (1 + 0.5 * garage.lv.power) * partStats().damage * (1 + 0.25 * run.dmg);
 const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const canClaimDaily = () => garage.daily.last !== todayStr();
 
@@ -186,12 +165,12 @@ let combo = 0, comboT = 0, bestCombo = 0, tutorialDone = false, tipList = [], ti
 const COMBO_WINDOW = 4;
 const BOT_COLORS = [[0x4d8bff, 0xffffff], [0x37c77a, 0xffffff], [0x9b6cff, 0xffd0f0], [0xff9f43, 0x3a2350]];
 
-const speedMul = () => Math.min(2.6, 1 + gameTime / 80);
-const playerSpeed = () => 15 * speedMul() * planeNow().speed * partStats().speed * (ramTime > 0 ? 1.65 : 1);
-const botSpeed = () => 13.2 * Math.min(2.3, 1 + gameTime / 95);
+const speedMul = () => Math.min(2.4, 1 + lvT / 120);
+const playerSpeed = () => (ringBoostT > 0 ? 1.35 : 1) * 15 * speedMul() * planeNow().speed * partStats().speed * (1 + 0.1 * run.spd) * (ramTime > 0 ? 1.65 : 1);
+const botSpeed = () => 13.2 * Math.min(2.2, 1 + lvT / 140);
 const scoreNow = () => Math.floor(gameTime) * 10 + killPts;
-const runCoins = () => Math.floor(Math.max(0, scoreNow() - runStartScore) / 50) * 3;
-const maxBotsNow = () => Math.min(8, 2 + Math.floor(gameTime / 22));
+const runCoins = () => Math.floor(scoreNow() / 50) * 3;
+const maxBotsNow = () => Math.min(8, 2 + Math.floor(lvT / 22));
 
 // ---------- input ----------
 const input = { mouseX: 0, mouseY: 0, mouseActive: false, mouseFire: false, keyFire: false, touchFire: false, ads: false, adsToggle: false,
@@ -216,11 +195,11 @@ function spawnBot(force, at) {
       x = player.x + Math.cos(ang) * d; z = player.z + Math.sin(ang) * d;
       if (Math.abs(x) > MAP - 10 || Math.abs(z) > MAP - 10) continue;
     }
-    const r = Math.random(), needAce = gameTime > 70 && !bots.some(o => o.kind === 'ace') && Math.random() < 0.6;
-    const kind = force || (needAce || (gameTime > 70 && r < Math.min(0.3, 0.1 + gameTime / 900)) ? 'ace'
-      : gameTime > 45 && r < Math.min(0.55, 0.3 + gameTime / 600) ? 'heavy' : 'normal');
+    const r = Math.random(), needAce = lvT > 70 && !bots.some(o => o.kind === 'ace') && Math.random() < 0.6;
+    const kind = force || (needAce || (lvT > 70 && r < Math.min(0.3, 0.1 + lvT / 900)) ? 'ace'
+      : lvT > 45 && r < Math.min(0.55, 0.3 + lvT / 600) ? 'heavy' : 'normal');
     const col = kind === 'ace' ? [0x8b1e2d, 0x2b2d42] : kind === 'heavy' ? [0x2b2d42, 0xff3b3b] : BOT_COLORS[(Math.random() * BOT_COLORS.length) | 0];
-    const b = { x, y: at ? clampAlt(at.y + rand(-6, 6)) : clampAlt(player.y + rand(-14, 14)), z, a: Math.atan2(player.z - z, player.x - x), p: 0, roll: 0, kind,
+    const b = { x, y: at ? clampAlt(at.y + rand(-6, 6)) : clampAlt(player.y + (isSpace() ? rand(-45, 45) : rand(-14, 14))), z, a: Math.atan2(player.z - z, player.x - x), p: 0, roll: 0, kind,
       hp: kind === 'heavy' ? 8 : kind === 'ace' ? 4 : 1, heavy: kind === 'heavy', scale: kind === 'heavy' ? 1.6 : 1,
       spd: kind === 'heavy' ? 0.8 : kind === 'ace' ? 1.12 : 1, pts: kind === 'heavy' ? 300 : kind === 'ace' ? 400 : 100,
       fireCd: rand(2.5, 4), mslCd: rand(4, 7), wander: 0, wanderT: 0, side: Math.random() < 0.5 ? -1 : 1, trailT: 0,
@@ -236,6 +215,7 @@ function removeBot(b) { scene.remove(b.mesh); }
 
 function setupTurrets() {
   turrets.forEach(t => scene.remove(t.mesh)); turrets = [];
+  if (themeFlag('noTurrets')) return;
   for (const o of ISLANDS) {
     if (o.r < 8 || o.tx === undefined || Math.abs(o.x) > MAP - 10 || Math.abs(o.z) > MAP - 10 || Math.hypot(o.x, o.z) < 60 || Math.random() > 0.5) continue;
     const mesh = makeTurret(); mesh.position.set(o.tx, o.ty - 0.4, o.tz); scene.add(mesh);
@@ -359,6 +339,8 @@ function clearWorld() {
   missiles.forEach(m => scene.remove(m.mesh)); missiles = [];
   bullets = []; parts = []; decoys = [];
   if (boss) scene.remove(boss.mesh);
+  turrets = turrets.filter(t => { if (t.carrier) { scene.remove(t.mesh); return false; } return true; });
+  clearMines(); resetRun(); dirPhase = 'none';
   boss = null; bossWarnT = 0; combo = 0; comboT = 0;
   $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('titan', 'ace', 'shield'); $('bossWarn').classList.add('hidden'); $('combo').classList.add('hidden');
   hideCine(); slowT = 0; slowScale = 1;
@@ -371,13 +353,13 @@ function resetDemoPlane() {
 
 function toTitle() {
   CG.gameplayStop();
+  applyTheme(0); $('upgrade').classList.add('hidden');
   ramTime=rollTime=shieldTime=stormTime=cloakTime=0; player.rollFx=0; shieldMesh.visible=false;
   state = 'title';
   clearWorld(); clearInput(); resetDemoPlane();
   $('titleBest').textContent = best;
   $('titleCoins').textContent = garage.coins;
   $('dailyBadge').hidden = !canClaimDaily();
-  renderCheckpoints();
   setHud(false); $('hint').classList.add('hidden');
   showOnly('title');
 }
@@ -388,6 +370,7 @@ function openDaily() {
   showOnly('daily');
 }
 function openGarage() {
+  applyTheme(0); $('upgrade').classList.add('hidden');
   ramTime=rollTime=shieldTime=stormTime=cloakTime=0; player.rollFx=0; shieldMesh.visible=false;
   CG.gameplayStop();
   state = 'garage';
@@ -397,22 +380,17 @@ function openGarage() {
   showOnly('garage');
 }
 
-function startRun(cp) {
+function startRun() {
   clearWorld(); clearInput(); resetSpecial();
   Object.assign(player, { x: 0, y: ALT, z: 0, a: -Math.PI / 2, p: 0, roll: 0, hp: maxHp(), ammo: startAmmo(), missiles: startMissiles(), flares: startFlares(),
     invul: 0, fireCd: 0, mslCd: 0, flareCd: 0, alive: true });
   player.mesh.visible = true; snapCamera();
   gameTime = 0; kills = 0; killPts = 0; runCoinsGiven = 0; revived = false; speedLevel = 0; botSpawnCd = 3; heartCd = 20;
-  bossCount = 0; nextBossAt = 75; bestCombo = 0; startTips();
+  bossCount = 0; nextBossAt = 1e9; bestCombo = 0; startTips();
   titanPhase = 'none'; titanT = 0; titanWarned = false; titanSlain = false; supplyT = 14;
   acePhase = 'none'; aceT = 0; aceWarned = false; aceSlain = false;
-  if (!cp) cp = window.__skipToAce ? 'ace' : window.__skipToTitan ? 'titan' : null;
-  runCheckpoint = CHECKPOINTS[cp] ? cp : null; runReached = null;
-  if (runCheckpoint) {   // start a few seconds before the boss arrives
-    gameTime = CHECKPOINTS[cp].at - 8; speedLevel = Math.floor(gameTime / 20); lastThreatStage = 3; nextBossAt = 1e9;
-    if (cp === 'ace') titanPhase = 'done';
-  }
-  runStartScore = scoreNow();
+  carrierPhase = 'none'; carrierT = 0; carrierWarned = false; carrierSunk = false;
+  initDirector(window.__warpStage || 1, !!window.__warpStage);
   for (let i = 0; i < 7; i++) spawnPickup('ammo');
   spawnPickup('missile');
   setupTurrets();
@@ -472,7 +450,7 @@ function crash() {
 function showOver() {
   state = 'over';
   setHud(false);
-  const sc = scoreNow(), isNew = !runCheckpoint && sc > best;   // checkpoint runs don't count for BEST
+  const sc = scoreNow(), isNew = sc > best;
   if (isNew) { const had = best > 0; best = sc; Store.set('best', best); if (had) CG.happytime(); }
   // coins: the whole run earns floor(score / 50); only the part not paid out yet is added (continue-safe)
   const earned = runCoins() - runCoinsGiven;
@@ -480,25 +458,22 @@ function showOver() {
   $('finalScore').textContent = sc;
   $('finalTime').textContent = Math.floor(gameTime) + 's';
   $('finalKills').textContent = kills;
-  $('finalBosses').textContent = bossCount;
+  $('finalBosses').textContent = stage + '-' + Math.max(1, wave);
   overShownAt = performance.now();
   $('finalBest').textContent = best;
   $('finalCoins').textContent = runCoins();
   $('finalCoinTotal').textContent = garage.coins;
   $('newBest').classList.toggle('hidden', !isNew);
   $('titanBadge').classList.toggle('hidden', !titanSlain);
-  $('cpNote').classList.toggle('hidden', !runCheckpoint);
-  const retry = runReached || runCheckpoint;
-  $('btnRetryCp').classList.toggle('hidden', !retry);
-  if (retry) $('btnRetryCp').innerHTML = '&#8635; RETRY ' + CHECKPOINTS[retry].clock + ' ' + CHECKPOINTS[retry].name;
   $('aceBadge').classList.toggle('hidden', !aceSlain);
+  $('carrierBadge').classList.toggle('hidden', !carrierSunk);
   $('btnRevive').classList.add('hidden');
   $('btnRevive').innerHTML = '<span class="adTag">AD</span>CONTINUE';
   setOverButtons(true);
   showOnly('over');
   Sound.sfxOver();
 }
-function setOverButtons(on) { for (const id of ['btnRevive', 'btnAgain', 'btnOverGarage', 'btnRetryCp']) $(id).disabled = !on; }
+function setOverButtons(on) { for (const id of ['btnRevive', 'btnAgain', 'btnOverGarage']) $(id).disabled = !on; }
 
 function revive() {
   revived = true;
@@ -596,3 +571,4 @@ function claimDaily() {
   renderDaily();
   if (garage.daily.day === 0) $('dailyList').querySelectorAll('.dTile').forEach(t => t.classList.add('done'));
 }
+

@@ -245,7 +245,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const ALT = 20;          // flight altitude
-const MAP = 280;         // playable half-size
+let MAP = 280;           // playable half-size (bigger in deep space)
 const SKY = 0xa9e3ff;
 const scene = new THREE.Scene();
 const HORIZON = 0xc4ecff;
@@ -259,7 +259,7 @@ scene.background = (() => {
 scene.fog = new THREE.Fog(HORIZON, 70, 300);
 const camera = new THREE.PerspectiveCamera(62, 1, 0.5, 700);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x6fa8d8, 1.45));
+const hemi = new THREE.HemisphereLight(0xffffff, 0x6fa8d8, 1.45); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff6e0, 2.2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048);
@@ -461,7 +461,7 @@ function instanced(geo, mat, list, cast = true) {
   im.castShadow = cast; im.receiveShadow = true;
   scene.add(im); return im;
 }
-const ISLANDS = [];
+const ISLANDS = [], WORLD = {};
 (function buildWorld() {
   const islands = ISLANDS;
   for (let tries = 0; islands.length < 70 && tries < 4000; tries++) {
@@ -487,10 +487,10 @@ const ISLANDS = [];
     }
   }
   const white = M(0xffffff);
-  instanced(G.cyl, white, sand, false);
-  instanced(G.sphMid, white, hills);
-  instanced(G.cyl, white, trunks);
-  instanced(G.sphMid, white, leaves);
+  WORLD.sand = { im: instanced(G.cyl, white, sand, false), list: sand };
+  WORLD.hills = { im: instanced(G.sphMid, white, hills), list: hills };
+  WORLD.trunks = { im: instanced(G.cyl, white, trunks), list: trunks };
+  WORLD.leaves = { im: instanced(G.sphMid, white, leaves), list: leaves };
   // clouds (below flight level, so planes cast shadows on them)
   const puffs = [];
   for (let i = 0; i < 110; i++) {
@@ -500,7 +500,7 @@ const ISLANDS = [];
       puffs.push({ x: cx + (k - n / 2) * 3.4 * s + rand(-1, 1), y: cy + rand(-0.6, 1.4), z: cz + rand(-2.5, 2.5) * s, sx: r, sy: r * 0.8, sz: r, c: 0xffffff });
     }
   }
-  instanced(G.sphMid, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0x3a4a5a }), puffs);
+  WORLD.puffs = instanced(G.sphMid, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0x3a4a5a }), puffs);
   const high = [];
   for (let i = 0; i < 70; i++) {
     const cx = rand(-380, 380), cz = rand(-380, 380), cy = rand(34, 52), n = 3 + (Math.random() * 3 | 0), s = rand(1, 1.8);
@@ -509,7 +509,7 @@ const ISLANDS = [];
       high.push({ x: cx + (k - n / 2) * 3.6 * s, y: cy + rand(-0.8, 1.2), z: cz + rand(-2.5, 2.5) * s, sx: r, sy: r * 0.7, sz: r, c: 0xffffff });
     }
   }
-  instanced(G.sphMid, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0x55606a }), high, false);
+  WORLD.high = instanced(G.sphMid, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0x55606a }), high, false);
   // border buoys
   const posts = [], tops = [];
   for (let i = -MAP; i <= MAP; i += 16) {
@@ -519,8 +519,8 @@ const ISLANDS = [];
       tops.push({ x, y: 18.5, z, sx: 1.4, sy: 1.4, sz: 1.4, c: red ? 0xffffff : 0xff4d6d });
     }
   }
-  instanced(G.cyl, white, posts);
-  instanced(G.sphLo, white, tops);
+  WORLD.posts = instanced(G.cyl, white, posts);
+  WORLD.tops = instanced(G.sphLo, white, tops);
 })();
 
 // ---------- pooled instanced effects: bullets & particles ----------
@@ -582,3 +582,4 @@ function makeHeart() {
   g.userData.inner = inner; g.userData.ring = ring;
   return g;
 }
+

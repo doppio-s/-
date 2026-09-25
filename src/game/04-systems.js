@@ -1,4 +1,3 @@
-
 let pendingPurchase=null;
 function purchaseOffer(type,id,slot){
  if(type==='part'){
@@ -135,7 +134,7 @@ function activateSpecial(){
   bots=bots.filter(b=>!b.dead);
   toast('HALO NOVA · '+n+' HIT');
  }
- specialCooldown=spec.cooldown;updateHud(true);updateSpecialHud();
+ specialCooldown=spec.cooldown*(1-0.2*run.cd);updateHud(true);updateSpecialHud();
 }
 function updateSpecial(dt){
  specialCooldown=Math.max(0,specialCooldown-dt);ramTime=Math.max(0,ramTime-dt);stormTime=Math.max(0,stormTime-dt);
@@ -150,8 +149,7 @@ function updateSpecial(dt){
  if(ramTime>0){const f=fwdOf(player);for(const s of [-1,1])addPart(player.x-f[0]*3-s*f[2]*2,player.y,player.z-f[2]*3+s*f[0]*2,0,0,0,.35,.55,0x62f5ec,.8);}
  if(stormTime>0&&Math.random()<dt*20){const f=fwdOf(player);addPart(player.x+f[0]*3,player.y,player.z+f[2]*3,rand(-3,3),rand(-3,3),rand(-3,3),.2,.35,0xffe46a,.5);}
  if(cloakTime>0&&Math.random()<dt*25)addPart(player.x+rand(-2,2),player.y+rand(-1,1),player.z+rand(-2,2),0,0,0,.4,.4,0xb69dff,.6);
- const stage=gameTime>=150?3:gameTime>=90?2:gameTime>=45?1:0;
- if(stage>lastThreatStage&&!duelLock()){lastThreatStage=stage;banner(['','INTERCEPTORS','SPECIALISTS','ELITE HUNT'][stage],'INBOUND','#ff8a9c');Sound.sfxEmpty();}
+ lastThreatStage=lvT>=150?3:lvT>=90?2:lvT>=45?1:0;
 }
 let specialHudKey='';
 function updateSpecialHud(){
@@ -161,16 +159,14 @@ function updateSpecialHud(){
  const label=act?'ACTIVE':specialCooldown>0?Math.ceil(specialCooldown)+'s':'READY';
  const disabled=state!=='playing'||specialCooldown>0;
  const clock=Math.floor(gameTime/60)+':'+String(Math.floor(gameTime%60)).padStart(2,'0');
- const titanNear=titanPhase==='none'&&gameTime>=120;
- const aceNear=titanPhase!=='fight'&&titanPhase!=='intro'&&acePhase==='none'&&gameTime>=ACE_AT-60&&gameTime<ACE_AT;
- const threat=aceLock()?'ACE DUEL':titanLock()?'FINAL BOSS':aceNear?'ACE IN '+Math.max(0,Math.ceil(ACE_AT-gameTime))+'s':boss?'BOSS FIGHT':titanNear?'TITAN IN '+Math.max(0,Math.ceil(TITAN_AT-gameTime))+'s':['SURVIVE','INTERCEPTORS','SPECIALISTS','ELITE HUNT'][lastThreatStage];
+ const threat=directorLabel();
  const key=[spec.name,label,disabled,act,clock,threat].join('|');
  if(key===specialHudKey)return;specialHudKey=key;
  $('btnSpecial').classList.remove('hidden');
  $('specialName').textContent=spec.name;$('specialState').textContent=label;
  $('btnSpecial').disabled=disabled;$('btnSpecial').classList.toggle('active',act);$('btnSpecial').classList.toggle('ready',!disabled);
  $('survivalClock').textContent=clock;
- $('threatLabel').textContent=threat;$('threatLabel').classList.toggle('boss',!!boss||duelLock()||titanNear||aceNear);
+ $('threatLabel').textContent=threat;$('threatLabel').classList.toggle('boss',dirPhase==='boss'||!!boss||duelLock());
 }
 // Strong enemies are introduced gradually and capped to keep attacks readable.
 function enemyAirframeAt(seconds,roll,active){
@@ -179,7 +175,7 @@ function enemyAirframeAt(seconds,roll,active){
  return pool[Math.min(pool.length-1,Math.floor(roll/.6*pool.length))];
 }
 function configureEnemyAirframe(b){
- const id=enemyAirframeAt(gameTime,Math.random(),bots.filter(b=>!b.dead&&b.airframe).length);if(!id)return;
+ const id=enemyAirframeAt(lvT,Math.random(),bots.filter(b=>!b.dead&&b.airframe).length);if(!id)return;
  const p=PLANES.find(p=>p.id===id);b.airframe=id;b.ability=ENEMY_ABILITY[id];b.specialCd=rand(5,8);b.specialCharge=0;b.ramTime=0;
  b.hp=Math.max(5,6+p.hp);b.heavy=p.hp>=2;b.scale=b.heavy?1.2:1;b.spd=p.speed*(b.heavy?.85:1);b.guns=p.guns;b.pts=350+(b.heavy?100:0);
  b.mesh=makePlane(0xd64c59,0xffaa54,p.shape);if(b.heavy)b.mesh.scale.multiplyScalar(1.2);
@@ -396,7 +392,7 @@ Sound.sfxLock=function(){this.tone(740,.07,'sine',.07);this.tone(1110,.09,'sine'
 $('btnTestWeapon').addEventListener('click',()=>{Sound.init();const id=isFleetView()&&state==='garage'?inspectedPlane:garage.plane;Sound.shot(weaponProfile(id,garage.loadout.weapon));});
 
 // ================= v2/v3: combo scoring, streaks, popups, hit markers, tips, bosses =================
-function targetables(){ return boss && !boss.dead && !(boss.cloakT > 0) ? [...bots, ...turrets, boss] : [...bots, ...turrets]; }
+function targetables(){ return boss && !boss.dead && !(boss.cloakT > 0) && !boss.carrier ? [...bots, ...turrets, boss] : [...bots, ...turrets]; }
 
 // --- big center banner (kill streaks, phase changes, speed-ups) ---
 function banner(title, sub = '', col = '#ffbb58') {
@@ -483,7 +479,7 @@ function startTips() {
     [20, IS_TOUCH ? 'At <b>LOCK</b>, <b>MSL</b> fires a missile that never misses' : 'At <b>LOCK</b>, <b>E</b> fires a missile that never misses'],
     [27, IS_TOUCH ? '<b>FLARE</b> fools enemy missiles · <b>SPECIAL</b> = your aircraft’s own ability' : '<b>F</b> drops flares · <b>Q</b> = your aircraft’s own ability'],
     [34, 'Chain kills quickly for a <b>COMBO</b> bonus'],
-    [42, 'Survive to <b>3:00</b> — the <b>OMEGA TITAN</b> is waiting'],
+    [42, 'Clear <b>3 waves</b> to face the stage <b>BOSS</b>'],
   ];
 }
 function hideTip() { $('tip').classList.remove('show'); tipT = 0; }
@@ -527,6 +523,7 @@ function makeBoss() {
 }
 // signed distance from a point to the airship's hull (negative = inside); k scales it for the titan
 function bossDist(o) {
+  if (boss.carrier) return carrierDist(o);
   if (boss.ace) return dist3(o, boss) - 3.4;
   const k = boss.k || 1, ca = Math.cos(boss.a), sa = Math.sin(boss.a), dx = o.x - boss.x, dy = o.y - boss.y, dz = o.z - boss.z;
   const t = clamp(dx * ca + dz * sa, -8 * k, 9 * k);
@@ -563,11 +560,13 @@ function hitBoss(dmg, at) {
     return;
   }
   if (boss.ace && aceBlocks(at)) return;
+  if (boss.carrier && carrierBlocks(at)) return;
   boss.hp -= dmg;
   for (let i = 0; i < 5; i++) addPart(at.x, at.y, at.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), 0.35, 0.45, i % 2 ? 0xffe24a : 0xffffff);
   Sound.tone(300, 0.05, 'square', 0.05);
   $('bossFill').style.width = Math.max(0, boss.hp / boss.max * 100).toFixed(1) + '%';
   if (boss.titan) { if (boss.hp <= 0) killTitan(); return; }
+  if (boss.carrier) { carrierBar(); if (boss.hp <= 0) killCarrier(); return; }
   if (boss.ace) { aceDamaged(dmg); if (boss.hp <= 0) killAce(); return; }
   // it sheds a supply crate at 75 / 50 / 25 %
   while (boss.drops > 0 && boss.hp <= boss.max * boss.drops / 4) {
@@ -581,20 +580,22 @@ function hitBoss(dmg, at) {
 function killBoss() {
   boss.dead = true; boss.dying = 1.6; bossCount++; kills++;
   awardKill(boss.x, boss.y + 4, boss.z, boss.pts, true);
+  bossHeart(boss, 1);
   $('bossBar').classList.add('hidden');
   shake = 0.5; Sound.sfxBoom(); hitStop(0.7, 0.25);
   banner('BOSS DOWN', '+' + boss.pts, '#ffd24a'); Sound.sfxFanfare(true);
   for (const m of missiles) if (m.enemy) { explode(m.x, m.y, m.z, 0.5); removeMissile(m); }
   missiles = missiles.filter(m => !m.dead);
-  nextBossAt = gameTime + 100;
+  nextBossAt = 1e9;
   CG.happytime();
 }
 function updateBoss(dt, hostile) {
   if (boss && boss.titan) { updateTitan(dt, hostile); return; }
   if (boss && boss.ace) { updateAce(dt, hostile); return; }
+  if (boss && boss.carrier) { updateCarrier(dt, hostile); return; }
   if (!boss) {
-    const titanSoon = (titanPhase === 'none' && gameTime > TITAN_AT - 25) || (acePhase === 'none' && gameTime > ACE_AT - 25);
-    if (hostile && !duelLock() && !titanSoon && gameTime >= nextBossAt && bossWarnT <= 0) announceBoss();
+    const titanSoon = (titanPhase === 'none' && gameTime > TITAN_AT - 25) || (acePhase === 'none' && gameTime > ACE_AT - 25) || (carrierPhase === 'none' && gameTime > CARRIER_AT - 25);
+
     if (bossWarnT > 0) { $('bossWarn').classList.toggle('hidden', state !== 'playing'); bossWarnT -= dt; if (bossWarnT <= 0) { if (hostile && !duelLock()) spawnBoss(); else $('bossWarn').classList.add('hidden'); } }
     return;
   }
@@ -607,7 +608,7 @@ function updateBoss(dt, hostile) {
     if (B.dying <= 0) {
       explode(B.x, B.y, B.z, 2.6); shockwave(B.x, B.y, B.z, 40, 0xffffff, 0.7); shake = Math.max(shake, 0.45); Sound.sfxBoom();
       if (state === 'playing') {
-        spawnPickup('heart', B.x + 5, B.z, clampAlt(B.y)); spawnPickup('missile', B.x - 5, B.z, clampAlt(B.y)); spawnPickup('ammo', B.x, B.z + 5, clampAlt(B.y));
+        spawnPickup('missile', B.x - 5, B.z, clampAlt(B.y)); spawnPickup('ammo', B.x, B.z + 5, clampAlt(B.y));
       }
       scene.remove(B.mesh); boss = null;
     }
@@ -709,13 +710,13 @@ function setCine(sub, title, line) { $('cineSub').innerHTML = sub; $('cineTitle'
 function showCine() { const c = $('cine'); c.classList.remove('hidden'); void c.offsetWidth; c.classList.add('on'); }
 function updateTitanFlow(dt) {
   if (titanPhase === 'none') {
-    if (!titanWarned && gameTime >= TITAN_AT - 5) {
+    if (false) {
       titanWarned = true;
       $('bossWarn').innerHTML = '<small>WARNING &middot; 3:00</small>FINAL BOSS INBOUND';
       $('bossWarn').classList.remove('hidden'); bossWarnT = 0;
       Sound.sfxSiren();
     }
-    if (gameTime >= TITAN_AT) startTitanIntro();
+
   } else if (titanPhase === 'intro') {
     titanT -= dt;
     if (Math.random() < dt * 6) shockwave(player.x + rand(-60, 60), player.y + rand(-10, 30), player.z + rand(-60, 60), rand(10, 25), 0xff2d55, 0.6);
@@ -728,7 +729,6 @@ function updateTitanFlow(dt) {
 // 3:00 — the sky is wiped clean, then the titan arrives
 function startTitanIntro() {
   titanPhase = 'intro'; titanT = 3.4;
-  reachCheckpoint('titan');
   $('bossWarn').classList.add('hidden'); bossWarnT = 0;
   let n = 0;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 1.1); removeBot(b); n++; }
@@ -741,12 +741,12 @@ function startTitanIntro() {
   bullets = bullets.filter(b => !b.enemy);
   if (n) { killPts += n * 100; popup(player.x, player.y + 4, player.z, 'SKY CLEARED +' + n * 100, true); }
   // full refit for the final fight
-  Object.assign(player, { hp: maxHp(), ammo: maxAmmo(), missiles: Math.min(9, Math.max(player.missiles, 6)), flares: Math.min(9, player.flares + 3), invul: 4.5 });
+  Object.assign(player, { hp: maxHp(), ammo: maxAmmo(), missiles: Math.min(maxMsl(), Math.max(player.missiles, 6)), flares: Math.min(maxFlr(), player.flares + 3), invul: 4.5 });
   shockwave(player.x, player.y, player.z, 120, 0xffffff, 1.1);
   shockwave(player.x, player.y, player.z, 80, 0xff2d55, 0.9);
   shake = 0.6; hitStop(1.1, 0.2); killFlash();
   Sound.sfxBoom(); Sound.tone(55, 1.6, 'sawtooth', 0.22, 30); Sound.sfxSiren();
-  setCine('FINAL WAVE &middot; 3:00', 'OMEGA TITAN', 'THE SKY IS CLEARED &mdash; IT\'S JUST YOU AND IT');
+  setCine('STAGE ' + stage + ' &middot; BOSS', 'OMEGA TITAN', 'THE SKY IS CLEARED &mdash; IT\'S JUST YOU AND IT');
   showCine(); updateHud(true);
 }
 function spawnTitan() {
@@ -804,11 +804,9 @@ function updateTitan(dt, hostile) {
       shockwave(B.x, B.y, B.z, 90, 0xffffff, 1.1); shockwave(B.x, B.y, B.z, 60, 0xffd24a, 0.9); shockwave(B.x, B.y, B.z, 35, 0xff2d55, 0.7);
       shake = 0.9; hitStop(0.8, 0.2); killFlash(); Sound.sfxBoom(); Sound.tone(45, 1.5, 'sine', 0.35, 20);
       if (state === 'playing') {
-        spawnPickup('heart', B.x + 6, B.z, clampAlt(B.y)); spawnPickup('heart', B.x - 6, B.z, clampAlt(B.y));
         spawnPickup('missile', B.x, B.z + 6, clampAlt(B.y)); spawnPickup('ammo', B.x, B.z - 6, clampAlt(B.y));
       }
       scene.remove(B.mesh); boss = null; titanPhase = 'done';
-      banner('SKY CONQUERED', 'THE HUNT RESUMES', '#62f5ec');
     }
   } else {
     if (B.intro > 0) B.intro -= dt;
@@ -887,8 +885,8 @@ function updateTitan(dt, hostile) {
 function killTitan() {
   const B = boss;
   B.dead = true; B.dying = 3.4; bossCount++; kills++; titanSlain = true;
-  clearCheckpoint('titan');
   awardKill(B.x, B.y + 8, B.z, B.pts, true);
+  bossHeart(B, 2);
   $('bossBar').classList.add('hidden');
   shake = 0.8; hitStop(1.6, 0.18); killFlash();
   banner('TITAN DOWN', '+10000 PTS · +300 COINS', '#ffd24a');
@@ -899,7 +897,7 @@ function killTitan() {
   for (const b of bots) { explode(b.x, b.y, b.z, 1); removeBot(b); b.dead = true; }
   bots = [];
   garage.coins += 300; saveGarage();
-  nextBossAt = gameTime + 90;
+  nextBossAt = 1e9;
   CG.happytime();
 }
 
@@ -920,6 +918,7 @@ function updateLocks(dt) {
   if (on) for (const t of targetables()) {
     if (t.dead) continue;
     const d = dist3(t, player); if (d > LOCK_RANGE) continue;
+    if (t.core && !(playerInHangar() && boss && boss.phase === 2)) continue;
     const sp = toScreen(t.x, t.y, t.z); if (!sp) continue;
     const dc = Math.hypot(sp.x - reticleAt.x, sp.y - reticleAt.y); if (dc > R) continue;
     cand.push({ t, d, cen: dc / R });
@@ -930,7 +929,7 @@ function updateLocks(dt) {
     if (locking >= MAX_LOCKS) break;
     locking++; active.add(c.t);
     const t = c.t, before = t.lock || 0;
-    const rate = 0.5 * (1.7 - c.cen) * (c.d < 70 ? 1.25 : 1) * (t === boss ? 0.75 : 1);
+    const rate = 0.5 * (1.7 - c.cen) * (c.d < 70 ? 1.25 : 1) * (t === boss ? 0.75 : 1) * (1 + 0.5 * run.lock);
     t.lock = Math.min(1, before + rate * dt);
     if (before < 1 && t.lock >= 1) { Sound.tone(1560, 0.06, 'square', 0.06); Sound.tone(2080, 0.1, 'square', 0.06, null, 0.07); }
     else if (Math.floor(before * 5) < Math.floor(t.lock * 5)) Sound.tone(620 + t.lock * 900, 0.045, 'sine', 0.05);
@@ -968,4 +967,5 @@ function drawLocks(on, R) {
     $('lockN').textContent = on && full > 0 && player.missiles > 0 ? 'LOCK' : '';
   }
 }
+
 
