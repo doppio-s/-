@@ -1458,7 +1458,7 @@ let acePhase = "none",
   aceWarned = !1,
   aceSlain = !1;
 const aceLock = () => acePhase === "intro" || acePhase === "fight",
-  duelLock = () => titanLock() || aceLock() || typeof carrierLock == "function" && carrierLock();
+  duelLock = () => titanLock() || aceLock() || typeof carrierLock == "function" && carrierLock() || typeof serpentLock == "function" && serpentLock();
 let slowT = 0,
   slowScale = 1;
 
@@ -2347,7 +2347,7 @@ function clearInput() {
 }
 
 function clearWorld() {
-  bots.forEach(removeBot), bots = [], pickups.forEach(removePickup), pickups = [], missiles.forEach(m => scene.remove(m.mesh)), missiles = [], bullets = [], parts = [], decoys = [], boss && scene.remove(boss.mesh), turrets = turrets.filter(t => t.carrier ? (scene.remove(t.mesh), !1) : !0), dirPhase === "wave" && endWave(), clearMines(), resetRun(), resetHazards(), dirPhase = "none", wv = {}, boss = null, bossWarnT = 0, combo = 0, comboT = 0, $("bossBar").classList.add("hidden"), $("bossBar").classList.remove("titan", "ace", "shield"), $("bossWarn").classList.add("hidden"), $("combo").classList.add("hidden"), hideCine(), slowT = 0, slowScale = 1, clearPopups(), clearHitLog(), hideTip(), clearHitFx()
+  bots.forEach(removeBot), bots = [], pickups.forEach(removePickup), pickups = [], missiles.forEach(m => scene.remove(m.mesh)), missiles = [], bullets = [], parts = [], decoys = [], boss && scene.remove(boss.mesh), boss && boss.serpent && boss.segs.forEach(s => scene.remove(s.g)), turrets = turrets.filter(t => t.carrier ? (scene.remove(t.mesh), !1) : !t.sCore), dirPhase === "wave" && endWave(), clearMines(), resetRun(), resetHazards(), dirPhase = "none", wv = {}, boss = null, bossWarnT = 0, combo = 0, comboT = 0, $("bossBar").classList.add("hidden"), $("bossBar").classList.remove("titan", "ace", "shield"), $("bossWarn").classList.add("hidden"), $("combo").classList.add("hidden"), hideCine(), slowT = 0, slowScale = 1, clearPopups(), clearHitLog(), hideTip(), clearHitFx()
 }
 
 function resetDemoPlane() {
@@ -2674,7 +2674,7 @@ function seaCheck(dt) {
   if (player.y > SEA_Y + .05) return;
   for (let i = 0; i < 30; i++) addPart(player.x + rand(-3, 3), .6, player.z + rand(-3, 3), rand(-8, 8), rand(6, 18), rand(-8, 8), rand(.5, 1), rand(.5, 1.1), i % 2 ? 16777215 : 10477823, 0, 22);
   shockwave(player.x, .8, player.z, 12, 16777215, .45), Sound.noise(.5, .35, 900), Sound.tone(120, .4, "sine", .2, 50);
-  player.invul <= 0 && !(shieldTime > 0) ? damage(!0, themeNow === 1 ? "GROUND!" : "SPLASH!") : shieldTime > 0 && popup(player.x, player.y + 2, player.z, "SHIELD");
+  player.invul <= 0 && !(shieldTime > 0) ? damage(!0, themeNow === 1 ? "GROUND!" : themeNow === 4 ? "CLOUD SEA!" : "SPLASH!") : shieldTime > 0 && popup(player.x, player.y + 2, player.z, "SHIELD");
   player.y = ALT_MIN + 5, player.p = .35, player.prS = 0, player.ve = Math.max(player.ve || 1, .9), player.stall = !1;
 }
 function updatePlayer(dt) {
@@ -2865,6 +2865,10 @@ function killBot(b) {
 
 function hitTurret(t, dmg) {
   if (!t.dead) {
+    if (t.sCore) {
+      serpentCoreHit(t, dmg);
+      return
+    }
     if (t.core) {
       hitReactor(t, dmg);
       return
@@ -2885,7 +2889,7 @@ function wreckTurret(t) {
 
 function updateTurrets(dt) {
   for (const t of turrets) {
-    if (t.dead || t.core) continue;
+    if (t.dead || t.core || t.sCore) continue;
     const dx = player.x - t.x,
       dy = player.y - t.y,
       dz = player.z - t.z,
@@ -2992,7 +2996,7 @@ function update(dt) {
   if (time += dt, updateSpace(dt), updateAsteroids(dt), updateObstacles(dt), updateHazards(dt), updateHitFx(dt), (state === "playing" || state === "dying" || state === "over") && updateMines(dt), seaTex.offset.x = (seaTex.offset.x + dt * .004) % 1, state === "title" || state === "garage" || state === "daily") player.a = wrapA(player.a + dt * .35), player.roll = lerp(player.roll, .35, dt * 3), player.p = 0, player.x += Math.cos(player.a) * 12 * dt, player.z += Math.sin(player.a) * 12 * dt, player.y = ALT + Math.sin(time * 2) * .3;
   else if (state === "ready") player.roll = lerp(player.roll, 0, dt * 4), player.p = lerp(player.p, 0, dt * 4);
   else if (state === "playing") {
-    gameTime += dt, updateSpecial(dt), updatePlayer(dt), updateTitanFlow(dt), updateAceFlow(dt), updateCarrierFlow(dt), botSpawnCd -= dt, updateDirector(dt), updateBots(dt, !playerHidden()), updateTurrets(dt), updateMissiles(dt);
+    gameTime += dt, updateSpecial(dt), updatePlayer(dt), updateTitanFlow(dt), updateAceFlow(dt), updateCarrierFlow(dt), updateSerpentFlow(dt), botSpawnCd -= dt, updateDirector(dt), updateBots(dt, !playerHidden()), updateTurrets(dt), updateMissiles(dt);
     for (const p of pickups) Math.hypot(p.x - player.x, p.z - player.z) > 240 && (removePickup(p), p.gone = !0);
     pickups = pickups.filter(p => !p.gone), pickups.filter(p => p.type === "ammo").length < 7 && spawnPickup("ammo"), pickups.filter(p => p.type === "missile").length < 2 && spawnPickup("missile"), heartCd -= dt, heartCd <= 0 && (heartCd = 20, player.hp < maxHp() && !pickups.some(p => p.type === "heart") && spawnPickup("heart"));
     for (const p of pickups)
@@ -3389,14 +3393,14 @@ function updateAimUI() {
     lbl: b.bomber ? "BOMBER " : b.airframe ? b.specialCharge > 0 ? "CHARGING " : b.airframe.toUpperCase() + " " : b.kind === "ace" ? "ACE " : b.heavy ? "HEAVY " : ""
   });
   for (const e of dnMarks()) list.push(e);
-  for (const t of turrets) !t.dead && !t.carrier && (t.core ? boss && boss.phase === 2 : t.strike || Math.hypot(t.x - player.x, t.z - player.z) < 110) && list.push(t.core ? {
+  for (const t of turrets) !t.dead && !t.carrier && (t.core ? boss && boss.phase === 2 : t.strike || t.sCore || Math.hypot(t.x - player.x, t.z - player.z) < 110) && list.push(t.core ? {
     o: t,
     cls: "boss",
     lbl: "REACTOR "
-  } : t.strike ? {
+  } : t.strike || t.sCore ? {
     o: t,
     cls: "tgt",
-    lbl: "TARGET "
+    lbl: t.sCore ? "SCALE " : "TARGET "
   } : {
     o: t,
     cls: "tur",
@@ -3412,7 +3416,7 @@ function updateAimUI() {
   boss && !boss.dead && !(boss.cloakT > 0) && list.unshift({
     o: boss,
     cls: boss.ace ? "boss ace" : "boss",
-    lbl: boss.titan ? "TITAN " : boss.ace ? boss.ramCharge > 0 || boss.ramT > 0 ? "RAM! " : boss.shieldT > 0 ? "SHIELD " : "FALCON " : "BOSS "
+    lbl: boss.serpent ? boss.phase === 1 ? "ARMORED " : "SERPENT " : boss.titan ? "TITAN " : boss.ace ? boss.ramCharge > 0 || boss.ramT > 0 ? "RAM! " : boss.shieldT > 0 ? "SHIELD " : "FALCON " : "BOSS "
   });
   let n = 0;
   for (const it of list) {
@@ -3462,9 +3466,9 @@ function syncInstances() {
       _q.setFromEuler(_e.set(0, -Math.atan2(b.vz, b.vx), Math.atan2(b.vy, Math.hypot(b.vx, b.vz)), "YZX")), _m4.compose(_v.set(b.x, b.y, b.z), _q, _s.set(b.profile === "bio" ? s2 * 2.2 : s2, s2, s2)), bulletMesh.setMatrixAt(n, _m4), bulletMesh.setColorAt(n, _c.set(b.enemy ? 16732772 : SHOT_COLORS[b.profile])), n++;
       continue
     }
-    if (b.profile === "orb") {
-      const s2 = 1.35 + Math.sin(time * 20 + n) * .2;
-      _q.identity(), _m4.compose(_v.set(b.x, b.y, b.z), _q, _s.set(s2, s2, s2)), bulletMesh.setMatrixAt(n, _m4), bulletMesh.setColorAt(n, _c.set(n % 3 ? 16726996 : 16765684)), n++;
+    if (b.profile === "orb" || b.profile === "fire") {
+      const s2 = (b.profile === "fire" ? 1.7 : 1.35) + Math.sin(time * 20 + n) * .2;
+      _q.identity(), _m4.compose(_v.set(b.x, b.y, b.z), _q, _s.set(s2, s2, s2)), bulletMesh.setMatrixAt(n, _m4), bulletMesh.setColorAt(n, _c.set(b.profile === "fire" ? n % 3 ? 16746027 : 16768586 : n % 3 ? 16726996 : 16765684)), n++;
       continue
     }
     _q.setFromEuler(_e.set(0, -Math.atan2(b.vz, b.vx), Math.atan2(b.vy, Math.hypot(b.vx, b.vz)), "YZX"));
@@ -3503,7 +3507,8 @@ function drawRadar() {
     rctx.fillStyle = col, rctx.beginPath(), shape === "sq" ? rctx.rect(x - r, y - r, r * 2, r * 2) : dy > 8 ? (rctx.moveTo(x, y - r * 1.2), rctx.lineTo(x + r, y + r * .8), rctx.lineTo(x - r, y + r * .8)) : dy < -8 ? (rctx.moveTo(x, y + r * 1.2), rctx.lineTo(x + r, y - r * .8), rctx.lineTo(x - r, y - r * .8)) : rctx.arc(x, y, r, 0, Math.PI * 2), rctx.fill()
   };
   for (const p of pickups) dot(p, p.type === "ammo" ? "#ffe24a" : p.type === "missile" ? "#ff9f43" : "#ff7a9c", 7);
-  for (const t of turrets) t.dead || dot(t, t.strike ? "#ff2d55" : "#ffa94d", t.strike ? 10 : 7, "sq");
+  for (const t of turrets) t.dead || dot(t, t.sCore ? "#7ff3ff" : t.strike ? "#ff2d55" : "#ffa94d", t.strike || t.sCore ? 10 : 7, "sq");
+  if (boss && boss.serpent && !boss.dead) for (const s of boss.segs) dot(s, "#1f8a7a", 5);
   for (const b of bots) dot(b, b.bomber ? "#ffd24a" : b.squad ? "#ffc83d" : b.kind === "ace" ? "#ff00aa" : "#ff3b3b", b.bomber ? 13 : b.heavy ? 11 : 9);
   for (const m of waveMarks()) m.cls === "gate" && dot(m.o, Math.floor(time * 4) % 2 ? "#ffd24a" : "#ffffff", 9, "sq");
   boss && !boss.dead && !(boss.cloakT > 0) && dot(boss, boss.titan ? Math.floor(time * 6) % 2 ? "#ff2d55" : "#ffd24a" : "#ffbb58", boss.titan ? 20 : 15, "sq"), rctx.restore(), rctx.save(), rctx.translate(cx, cx), rctx.rotate(-Math.PI / 2), rctx.fillStyle = "#fff", rctx.beginPath(), rctx.moveTo(16, 0), rctx.lineTo(-10, 10), rctx.lineTo(-5, 0), rctx.lineTo(-10, -10), rctx.closePath(), rctx.fill(), rctx.restore()
@@ -4520,7 +4525,7 @@ Sound.shot = function(profile, enemy = !1) {
 });
 
 function targetables() {
-  return boss && !boss.dead && !(boss.cloakT > 0) && !boss.carrier ? [...bots, ...turrets, boss] : [...bots, ...turrets]
+  return boss && !boss.dead && !(boss.cloakT > 0) && !boss.carrier && !(boss.serpent && !serpentTargetable()) ? [...bots, ...turrets, boss] : [...bots, ...turrets]
 }
 
 function banner(title, sub = "", col = "#ffbb58") {
@@ -4719,6 +4724,7 @@ function makeBoss() {
 
 function bossDist(o) {
   if (boss.carrier) return carrierDist(o);
+  if (boss.serpent) return serpentDist(o);
   if (boss.ace) return dist3(o, boss) - 3.4;
   const k = boss.k || 1,
     ca = Math.cos(boss.a),
@@ -4777,6 +4783,10 @@ function hitBoss(dmg, at) {
       for (let i = 0; i < 4; i++) addPart(at.x, at.y, at.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), .3, .4, 8385535);
       return
     }
+    if (boss.serpent) {
+      serpentHit(dmg, at);
+      return
+    }
     if (!(boss.ace && aceBlocks(at)) && !(boss.carrier && carrierBlocks(at))) {
       boss.hp -= dmg;
       for (let i = 0; i < 5; i++) addPart(at.x, at.y, at.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), .35, .45, i % 2 ? 16769610 : 16777215);
@@ -4816,6 +4826,10 @@ function updateBoss(dt, hostile) {
   }
   if (boss && boss.carrier) {
     updateCarrier(dt, hostile);
+    return
+  }
+  if (boss && boss.serpent) {
+    updateSerpent(dt, hostile);
     return
   }
   if (!boss) {
@@ -5291,7 +5305,7 @@ function hitMats(o) {
 
 function hitFx(o, dmg, at) {
   if (!o || !o.mesh) return;
-  const huge = o.titan || o.carrier;
+  const huge = o.titan || o.carrier || o.serpent;
   o.hpMax == null && (o.hpMax = o.max || o.hp + dmg), o._bs == null && (o._bs = o.mesh.scale.x), o.hitT = huge ? .07 : .11, o.hitDur = o.hitT, o.hitK = huge ? .35 : o.boss ? .7 : 1, hitMats(o), hitFlashing.add(o);
   const p = at || o;
   for (let i = 0; i < 4; i++) addPart(p.x, p.y, p.z, rand(-9, 9), rand(-4, 9), rand(-9, 9), .22, .5, 16777215, .3);
@@ -6128,6 +6142,16 @@ function buildObstacles(i) {
       add(G.cone, bands[k % 4], r * 1.3, h, r * 1.3, x, h / 2, z);
       cyl(x, z, r, -5, h * 0.92);
     }
+  } else if (i === 4) {   // CLOUD SEA: floating rock islands hanging over the clouds
+    const rock = M(0x8a7aa0, { roughness: 0.9, flatShading: true }), moss = M(0xffb0d0, { roughness: 0.8 }), fall = M(0xffffff, { roughness: 0.3, transparent: true, opacity: 0.55 });
+    for (let k = 0; k < 11; k++) {
+      const p = obstFreeSpot(rnd, 16, 60); if (!p) continue;
+      const [x, z] = p, r = 9 + rnd() * 9, y = 22 + rnd() * 30, h = r * (1.1 + rnd() * 0.5);
+      add(G.cone, rock, r, h, r, x, y - h / 2, z).rotation.x = Math.PI;   // inverted cone of rock
+      add(G.sph, moss, r * 1.05, r * 0.35, r * 1.05, x, y, z);
+      add(G.cyl, fall, 1.4, y, 1.4, x + r * 0.6, y / 2, z);               // a thin cloud-fall to the sea
+      cyl(x, z, r, y - h, y + r * 0.35);
+    }
   } else if (i === 3) {   // NIGHT FRONT: sea platforms and blinking radio masts
     const steel = M(0x4a5260, { metalness: 0.5, roughness: 0.5 }), deck = M(0x2c323b), lamp = M(0xff3b3b, { emissive: 0xff1010, emissiveIntensity: 2 }), win = M(0xffe08a, { emissive: 0xffb13b, emissiveIntensity: 1.5 });
     for (let k = 0; k < 8; k++) {
@@ -6309,6 +6333,23 @@ const THEMES = [{
   leaves: [2179119, 2771510, 1849898, 2573876],
   stars: !0,
   lightning: !0
+}, {
+  // CLOUD SEA: a sunset above an endless cloud floor; the sky serpent's hunting ground
+  sky: ["#5a3fc8", "#ff8fbf", "#ffd9a8"],
+  fog: 0xffd8e8,
+  fogN: 80,
+  fogF: 330,
+  sea: "#f6ecff",
+  seaLine: "#ffffff",
+  hemi: [0xfff0ff, 0xb08ad8, 1.4],
+  sun: [0xffd2a8, 2.4],
+  cloud: [0xffffff, 0x8a6aa0],
+  high: [0xfff4fb, 0x7a5a90],
+  sand: 0xd8c8f0,
+  hills: [0xc8b0e8, 0xb89ad8, 0xd8c0f0, 0xa88ac8],
+  trunk: 0x8a6a9a,
+  leaves: [0xffc0dc, 0xffb0d0, 0xf8c8e8, 0xffd0e4],
+  noIslands: !0
 }];
 let themeNow = -1;
 const starDome = (() => {
@@ -6638,12 +6679,18 @@ const STAGES = [{
     boss: "carrier",
     col: "#8fb4ff",
     hz: "LIGHTNING STORM"
+  }, {
+    name: "CLOUD SEA",
+    boss: "serpent",
+    col: "#ff9ac2",
+    hz: "SERPENT TERRITORY"
   }],
   WAVE_T = [
     [15, 40, 65],
     [90, 110, 130],
     [150, 170, 190],
-    [205, 225, 245]
+    [205, 225, 245],
+    [265, 285, 305]
   ],
   LAP_T = 70;
 let stage = 1,
@@ -6672,8 +6719,9 @@ const run = {
 function resetRun() {
   for (const k of Object.keys(run)) run[k] = 0
 }
-const stageIdx = () => (stage - 1) % 4,
-  lapN = () => Math.floor((stage - 1) / 4),
+const STAGE_N = 5,
+  stageIdx = () => (stage - 1) % STAGE_N,
+  lapN = () => Math.floor((stage - 1) / STAGE_N),
   waveT = w => WAVE_T[stageIdx()][w] + lapN() * LAP_T;
 
 function initDirector(n, toBoss) {
@@ -6720,13 +6768,13 @@ function waveCleared(title = "WAVE CLEAR", sub) {
 function startBossFight() {
   dirPhase = "boss", bossSeen = !1, lvT = waveT(2);
   const kind = STAGES[stageIdx()].boss;
-  stage <= 4 && reachCheckpoint(stage), kind === "fortress" ? announceBoss() : kind === "titan" ? (titanPhase = "none", titanWarned = !1, startTitanIntro()) : kind === "ace" ? (acePhase = "none", aceWarned = !1, startAceIntro()) : (carrierPhase = "none", carrierWarned = !1, startCarrierIntro())
+  stage <= STAGE_N && reachCheckpoint(stage), kind === "fortress" ? announceBoss() : kind === "titan" ? (titanPhase = "none", titanWarned = !1, startTitanIntro()) : kind === "ace" ? (acePhase = "none", aceWarned = !1, startAceIntro()) : kind === "serpent" ? (serpentPhase = "none", startSerpentIntro()) : (carrierPhase = "none", carrierWarned = !1, startCarrierIntro())
 }
 
 function stageCleared() {
   dirPhase = "stageClear", dirT = 2.4;
   for (const b of bots) b.dead || (b.dead = !0, explode(b.x, b.y, b.z, .8), removeBot(b));
-  bots = [], stage <= 4 && clearCheckpoint(stage);
+  bots = [], stage <= STAGE_N && clearCheckpoint(stage);
   const bonus = 1e3 * stage,
     coins = 40 * stage;
   killPts += bonus, garage.coins += coins, saveGarage(), banner("STAGE " + stage + " CLEAR", "+" + bonus + " PTS \xB7 +" + coins + " COINS", "#ffd24a"), Sound.sfxFanfare(!0), updateHud(!0)
@@ -6772,7 +6820,7 @@ function updateDirector(dt) {
         if (boss.hp *= k, boss.max *= k, boss.parts)
           for (const t of boss.parts) t.hp *= k
       }
-      if (!boss.titan && !boss.ace && !boss.carrier && botSpawnCd <= 0 && bots.length < Math.min(3, maxBotsNow())) {
+      if (!boss.titan && !boss.ace && !boss.carrier && !boss.serpent && botSpawnCd <= 0 && bots.length < Math.min(3, maxBotsNow())) {
         const b = spawnBot();
         b && loopBuff(b), botSpawnCd = rand(2, 3.5)
       }
@@ -6926,7 +6974,8 @@ const LINEUP = [
   ["dogfight", "slalom", "strike"],
   ["bombers", "slalom", "survive"],
   ["gates", "bombers", "squadron"],
-  ["slalom", "bombers", "survive"]
+  ["slalom", "bombers", "survive"],
+  ["gates", "squadron", "survive"]
 ];
 let wtype = "dogfight",
   wv = {};
@@ -7514,9 +7563,11 @@ const CP_BOSS = {
     1: "SKY FORTRESS",
     2: "OMEGA TITAN",
     3: "FALCON ZERO",
-    4: "IRON LEVIATHAN"
+    4: "IRON LEVIATHAN",
+    5: "SKY SERPENT"
   },
   checkpoints = {
+    5: 0,
     1: 0,
     2: 0,
     3: 0,
@@ -7569,12 +7620,4 @@ for (const n of Object.keys(CP_BOSS)) onBtn("btnCp-" + n, () => {
 });
 onBtn("btnRetryCp", () => {
   state !== "over" || busy || (Sound.sfxClick(), startRun(runReached || runCheckpoint))
-}), $("titleKeys").innerHTML = IS_TOUCH ? ["Drag anywhere for a joystick", "BOOST / BRAKE on the left", "FIRE to shoot", "MSL / FLARE / SPECIAL buttons", "AIM to lock on"].map(t => `<span style="white-space:nowrap">${t}</span>`).join(" &middot; ") : ["Mouse or WASD: bank &amp; pitch", "Shift: boost (heat)", "Z: brake", "Click / Space: fire", "Right-click / X: aim &amp; lock-on", "E: missile", "F: flare", "Q: special"].map(t => `<span style="white-space:nowrap">${t}</span>`).join(" &middot; "), IS_TOUCH && document.body.classList.add("touch"), IS_TOUCH && ($("mslWarn").innerHTML = "MISSILE! &nbsp;TAP FLARE"), resize(), requestAnimationFrame(frame), await CG.init(), CG.loadingStart();
-const b0 = parseInt(await Store.get("best"), 10);
-best = isFinite(b0) && b0 > 0 ? b0 : 0, Sound.muted = await Store.get("muted") === "1", loadGarage(await Store.get("garage")), garage.coins = Math.max(garage.coins, 99999), garage.planes = PLANES.map(p => p.id), garage.paints = PAINTS.map(p => p.id);
-for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = items.map(p => p.id);
-saveGarage(), loadAudio(await Store.get("audio")), loadControls(await Store.get("controls")), loadCheckpoints(await Store.get("checkpoints")), tutorialDone = await Store.get("tut10") === "1";
-{ const hw = { '#fortress': 1, '#titan': 2, '#ace': 3, '#carrier': 4 }[location.hash]; hw && (window.__warpStage = hw); }
-applyLook(), updateMuteBtn(), lastAdTime = Date.now(), CG.loadingStop(), $("loading").classList.add("hidden"), toTitle(), location.hash === "#dbg" && (window.__dbg = {
-  ev: s => eval(s)
 });
