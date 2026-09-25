@@ -386,6 +386,13 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
   -webkit-text-stroke:2px #3a0010;text-shadow:0 0 30px #ff2d55,0 0 80px #ff2d55,0 6px 0 #142c3e}
 #cine p{color:#ffd6de;font-weight:800;letter-spacing:.24em;font-size:13px}
 #cine::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 40%,rgba(255,0,60,.4));animation:lowhp .55s ease-in-out infinite}
+#bossBar.ace{width:min(560px,56vw)}
+#bossBar.ace b{font-size:15px;color:#dff6ff;text-shadow:0 2px 0 #142c3e,0 0 14px #62f5ec}
+#bossBar.ace .track{height:16px;border-color:#62f5ec;box-shadow:0 0 16px #62f5ec66}
+#bossBar.ace .fill{background:linear-gradient(90deg,#ff2d55,#ff5c8a,#c9a8ff)}
+#bossBar .tick.t50{display:none}#bossBar.ace .tick.t50{display:block}
+#bossBar.ace.shield .track{box-shadow:0 0 22px #7ff3ff;border-color:#fff}#bossBar.ace.shield .fill{filter:saturate(.3) brightness(1.6)}
+#aceBadge{background:linear-gradient(90deg,#142c3e,#ff2d55);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(2deg);box-shadow:0 0 18px #ff2d5588}
 #titanBadge{background:linear-gradient(90deg,#ff2d55,#ffb13b);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(-2deg);box-shadow:0 0 18px #ff7a2d88}
 </style>
 <!-- THIRD-PARTY LICENSES
@@ -434,9 +441,9 @@ included in this distribution. Its service terms apply separately.
 <div id="popups"></div>
 <div id="streak"></div>
 <div id="combo" class="hidden"><small>COMBO</small><span id="comboN">x2</span><div class="bar"><i id="comboBar"></i></div></div>
-<div id="bossBar" class="hidden"><b id="bossName">SKY FORTRESS</b><div class="track"><div class="fill" id="bossFill"></div><i class="tick" style="left:33.33%"></i><i class="tick" style="left:66.67%"></i></div></div>
+<div id="bossBar" class="hidden"><b id="bossName">SKY FORTRESS</b><div class="track"><div class="fill" id="bossFill"></div><i class="tick" style="left:33.33%"></i><i class="tick" style="left:66.67%"></i><i class="tick t50" style="left:50%"></i></div></div>
 <div id="bossWarn" class="hidden"><small>WARNING</small>BOSS INBOUND</div>
-<div id="cine" class="hidden"><div class="bar top"></div><div class="bar bot"></div><div class="card"><small>FINAL WAVE &middot; 3:00</small><h3>OMEGA TITAN</h3><p>THE SKY IS CLEARED &mdash; IT'S JUST YOU AND IT</p></div></div>
+<div id="cine" class="hidden"><div class="bar top"></div><div class="bar bot"></div><div class="card"><small id="cineSub">FINAL WAVE &middot; 3:00</small><h3 id="cineTitle">OMEGA TITAN</h3><p id="cineLine">THE SKY IS CLEARED &mdash; IT'S JUST YOU AND IT</p></div></div>
 <div id="tip"></div>
 <div id="markers" hidden></div>
 <div id="lockUI" hidden><div id="lockRing"><svg viewBox="-100 -100 200 200"><circle class="o" r="97"/><circle class="i" r="88"/><g class="ticks"><path d="M0-100V-84M0 100V84M-100 0H-84M100 0H84"/></g><circle class="spin" r="93"/></svg><span class="tl">LOCK-ON MODE</span><span class="bl" id="lockCount"></span></div></div>
@@ -466,7 +473,7 @@ included in this distribution. Its service terms apply separately.
 <div id="title" class="screen hidden">
   <div class="titleWrap">
     <div class="eyebrow">FREE-ROAM AIR COMBAT</div><h1>FLIGHT<span>.IO</span></h1><div class="edition">SKY WORKSHOP</div><div style="background:#ff3b5c;color:#fff;font-weight:800;font-size:13px;letter-spacing:.12em;padding:5px 12px;border-radius:6px">TEST BUILD · ALL UNLOCKED</div>
-    <div class="sub" id="titleSub">Outfly the hunt. Survive 3:00 to face the OMEGA TITAN.</div>
+    <div class="sub" id="titleSub">Outfly the hunt. 3:00 brings the OMEGA TITAN. 5:00, the ACE.</div>
     <button id="btnPlay" class="btn">PLAY</button>
     <div class="btnRow">
       <button id="btnGarage" class="btn green small2">GARAGE</button>
@@ -492,6 +499,7 @@ included in this distribution. Its service terms apply separately.
       <div class="stat"><span class="lbl">SCORE</span><span class="big" id="finalScore">0</span></div>
       <div id="newBest" class="hidden">NEW BEST!</div>
       <div id="titanBadge" class="hidden">OMEGA TITAN SLAIN</div>
+      <div id="aceBadge" class="hidden">ACE FALCON ZERO DOWNED</div>
       <div class="coinGain"><span class="coin"></span>+<span id="finalCoins">0</span> coins &middot; total <span id="finalCoinTotal">0</span></div>
       <div class="row">
         <div class="stat"><span class="lbl">TIME</span><span class="val" id="finalTime">0s</span></div>

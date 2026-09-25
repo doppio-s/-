@@ -151,7 +151,7 @@ function updateSpecial(dt){
  if(stormTime>0&&Math.random()<dt*20){const f=fwdOf(player);addPart(player.x+f[0]*3,player.y,player.z+f[2]*3,rand(-3,3),rand(-3,3),rand(-3,3),.2,.35,0xffe46a,.5);}
  if(cloakTime>0&&Math.random()<dt*25)addPart(player.x+rand(-2,2),player.y+rand(-1,1),player.z+rand(-2,2),0,0,0,.4,.4,0xb69dff,.6);
  const stage=gameTime>=150?3:gameTime>=90?2:gameTime>=45?1:0;
- if(stage>lastThreatStage&&!titanLock()){lastThreatStage=stage;banner(['','INTERCEPTORS','SPECIALISTS','ELITE HUNT'][stage],'INBOUND','#ff8a9c');Sound.sfxEmpty();}
+ if(stage>lastThreatStage&&!duelLock()){lastThreatStage=stage;banner(['','INTERCEPTORS','SPECIALISTS','ELITE HUNT'][stage],'INBOUND','#ff8a9c');Sound.sfxEmpty();}
 }
 let specialHudKey='';
 function updateSpecialHud(){
@@ -162,14 +162,15 @@ function updateSpecialHud(){
  const disabled=state!=='playing'||specialCooldown>0;
  const clock=Math.floor(gameTime/60)+':'+String(Math.floor(gameTime%60)).padStart(2,'0');
  const titanNear=titanPhase==='none'&&gameTime>=120;
- const threat=titanLock()?'FINAL BOSS':boss?'BOSS FIGHT':titanNear?'TITAN IN '+Math.max(0,Math.ceil(TITAN_AT-gameTime))+'s':['SURVIVE','INTERCEPTORS','SPECIALISTS','ELITE HUNT'][lastThreatStage];
+ const aceNear=titanPhase!=='fight'&&titanPhase!=='intro'&&acePhase==='none'&&gameTime>=ACE_AT-60&&gameTime<ACE_AT;
+ const threat=aceLock()?'ACE DUEL':titanLock()?'FINAL BOSS':aceNear?'ACE IN '+Math.max(0,Math.ceil(ACE_AT-gameTime))+'s':boss?'BOSS FIGHT':titanNear?'TITAN IN '+Math.max(0,Math.ceil(TITAN_AT-gameTime))+'s':['SURVIVE','INTERCEPTORS','SPECIALISTS','ELITE HUNT'][lastThreatStage];
  const key=[spec.name,label,disabled,act,clock,threat].join('|');
  if(key===specialHudKey)return;specialHudKey=key;
  $('btnSpecial').classList.remove('hidden');
  $('specialName').textContent=spec.name;$('specialState').textContent=label;
  $('btnSpecial').disabled=disabled;$('btnSpecial').classList.toggle('active',act);$('btnSpecial').classList.toggle('ready',!disabled);
  $('survivalClock').textContent=clock;
- $('threatLabel').textContent=threat;$('threatLabel').classList.toggle('boss',!!boss||titanLock()||titanNear);
+ $('threatLabel').textContent=threat;$('threatLabel').classList.toggle('boss',!!boss||duelLock()||titanNear||aceNear);
 }
 // Strong enemies are introduced gradually and capped to keep attacks readable.
 function enemyAirframeAt(seconds,roll,active){
@@ -376,7 +377,7 @@ function updateCombatFx(dt,raw){
  const sl=state==='playing'?clamp((ramTime>0?.85:0)+(rollTime>0?.4:0)+(speedMul()-1.5)*.3+(slowT>0&&slowScale<.5?.35:0),0,.9):0;
  if(Math.abs(sl-speedLineCache)>.02){speedLineCache=sl;$('speedLines').style.opacity=sl.toFixed(2);}
  // music follows the fight
- Sound.mode=titanLock()?'titan':boss&&!boss.dead?'boss':'normal';
+ Sound.mode=duelLock()?'titan':boss&&!boss.dead?'boss':'normal';
  Sound.drums=state==='playing'||state==='ready';
 }
 Sound.shot=function(profile,enemy=false){
@@ -395,7 +396,7 @@ Sound.sfxLock=function(){this.tone(740,.07,'sine',.07);this.tone(1110,.09,'sine'
 $('btnTestWeapon').addEventListener('click',()=>{Sound.init();const id=isFleetView()&&state==='garage'?inspectedPlane:garage.plane;Sound.shot(weaponProfile(id,garage.loadout.weapon));});
 
 // ================= v2/v3: combo scoring, streaks, popups, hit markers, tips, bosses =================
-function targetables(){ return boss && !boss.dead ? [...bots, ...turrets, boss] : [...bots, ...turrets]; }
+function targetables(){ return boss && !boss.dead && !(boss.cloakT > 0) ? [...bots, ...turrets, boss] : [...bots, ...turrets]; }
 
 // --- big center banner (kill streaks, phase changes, speed-ups) ---
 function banner(title, sub = '', col = '#ffbb58') {
@@ -526,6 +527,7 @@ function makeBoss() {
 }
 // signed distance from a point to the airship's hull (negative = inside); k scales it for the titan
 function bossDist(o) {
+  if (boss.ace) return dist3(o, boss) - 3.4;
   const k = boss.k || 1, ca = Math.cos(boss.a), sa = Math.sin(boss.a), dx = o.x - boss.x, dy = o.y - boss.y, dz = o.z - boss.z;
   const t = clamp(dx * ca + dz * sa, -8 * k, 9 * k);
   const d = Math.hypot(dx - ca * t, dy, dz - sa * t);
@@ -547,7 +549,7 @@ function spawnBoss() {
   scene.add(boss.mesh);
   $('bossName').textContent = 'SKY FORTRESS' + (n ? ' MK ' + (n + 1) : '');
   $('bossFill').style.width = '100%';
-  $('bossBar').classList.remove('titan');
+  $('bossBar').classList.remove('titan', 'ace', 'shield');
   $('bossBar').classList.remove('hidden');
   // resupply so the fight is winnable at any upgrade level
   for (let i = 0; i < 3; i++) spawnPickup('ammo');
@@ -560,11 +562,13 @@ function hitBoss(dmg, at) {
     for (let i = 0; i < 4; i++) addPart(at.x, at.y, at.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), 0.3, 0.4, 0x7ff3ff);
     return;
   }
+  if (boss.ace && aceBlocks(at)) return;
   boss.hp -= dmg;
   for (let i = 0; i < 5; i++) addPart(at.x, at.y, at.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), 0.35, 0.45, i % 2 ? 0xffe24a : 0xffffff);
   Sound.tone(300, 0.05, 'square', 0.05);
   $('bossFill').style.width = Math.max(0, boss.hp / boss.max * 100).toFixed(1) + '%';
   if (boss.titan) { if (boss.hp <= 0) killTitan(); return; }
+  if (boss.ace) { aceDamaged(dmg); if (boss.hp <= 0) killAce(); return; }
   // it sheds a supply crate at 75 / 50 / 25 %
   while (boss.drops > 0 && boss.hp <= boss.max * boss.drops / 4) {
     boss.drops--;
@@ -587,10 +591,11 @@ function killBoss() {
 }
 function updateBoss(dt, hostile) {
   if (boss && boss.titan) { updateTitan(dt, hostile); return; }
+  if (boss && boss.ace) { updateAce(dt, hostile); return; }
   if (!boss) {
-    const titanSoon = titanPhase === 'none' && gameTime > TITAN_AT - 25;
-    if (hostile && !titanLock() && !titanSoon && gameTime >= nextBossAt && bossWarnT <= 0) announceBoss();
-    if (bossWarnT > 0) { $('bossWarn').classList.toggle('hidden', state !== 'playing'); bossWarnT -= dt; if (bossWarnT <= 0) { if (hostile && !titanLock()) spawnBoss(); else $('bossWarn').classList.add('hidden'); } }
+    const titanSoon = (titanPhase === 'none' && gameTime > TITAN_AT - 25) || (acePhase === 'none' && gameTime > ACE_AT - 25);
+    if (hostile && !duelLock() && !titanSoon && gameTime >= nextBossAt && bossWarnT <= 0) announceBoss();
+    if (bossWarnT > 0) { $('bossWarn').classList.toggle('hidden', state !== 'playing'); bossWarnT -= dt; if (bossWarnT <= 0) { if (hostile && !duelLock()) spawnBoss(); else $('bossWarn').classList.add('hidden'); } }
     return;
   }
   const B = boss, ud = B.mesh.userData;
@@ -700,6 +705,7 @@ function hideCine() {
   const c = $('cine'); c.classList.remove('on');
   setTimeout(() => { if (!c.classList.contains('on')) c.classList.add('hidden'); }, 550);
 }
+function setCine(sub, title, line) { $('cineSub').innerHTML = sub; $('cineTitle').textContent = title; $('cineLine').innerHTML = line; }
 function showCine() { const c = $('cine'); c.classList.remove('hidden'); void c.offsetWidth; c.classList.add('on'); }
 function updateTitanFlow(dt) {
   if (titanPhase === 'none') {
@@ -739,6 +745,7 @@ function startTitanIntro() {
   shockwave(player.x, player.y, player.z, 80, 0xff2d55, 0.9);
   shake = 0.6; hitStop(1.1, 0.2); killFlash();
   Sound.sfxBoom(); Sound.tone(55, 1.6, 'sawtooth', 0.22, 30); Sound.sfxSiren();
+  setCine('FINAL WAVE &middot; 3:00', 'OMEGA TITAN', 'THE SKY IS CLEARED &mdash; IT\'S JUST YOU AND IT');
   showCine(); updateHud(true);
 }
 function spawnTitan() {
@@ -751,7 +758,7 @@ function spawnTitan() {
   scene.add(boss.mesh);
   $('bossName').textContent = 'OMEGA TITAN · PHASE 1';
   $('bossFill').style.width = '100%';
-  $('bossBar').classList.add('titan'); $('bossBar').classList.remove('hidden');
+  $('bossBar').classList.remove('ace', 'shield'); $('bossBar').classList.add('titan'); $('bossBar').classList.remove('hidden');
   banner('OMEGA TITAN', 'DESTROY IT', '#ff2d55');
   shockwave(boss.x, boss.y, boss.z, 60, 0xff2d55, 0.9);
   Sound.tone(40, 2, 'sawtooth', 0.25, 90); Sound.sfxBoom();
@@ -945,7 +952,7 @@ function drawLocks(on, R) {
       el.style.transform = `translate(${(sp.x - sz / 2).toFixed(1)}px,${(sp.y - sz / 2).toFixed(1)}px)`;
       el.querySelector('.prog').setAttribute('stroke-dasharray', (t.lock * 100).toFixed(1) + ' 100');
       el.querySelector('b').textContent = done ? 'LOCK' : 'HIT ' + Math.round(35 + 65 * t.lock) + '%';
-      el.querySelector('i').textContent = (t === boss ? (t.titan ? 'TITAN ' : 'BOSS ') : '') + Math.round(d) + 'm';
+      el.querySelector('i').textContent = (t === boss ? (t.titan ? 'TITAN ' : t.ace ? 'ACE ' : 'BOSS ') : '') + Math.round(d) + 'm';
     }
   }
   for (let i = n; i < LKS.length; i++) LKS[i].hidden = true;
@@ -960,35 +967,3 @@ function drawLocks(on, R) {
   }
 }
 
-// ---------- boot ----------
-$('titleKeys').innerHTML = IS_TOUCH
-  ? ['Drag anywhere to steer &amp; climb', 'FIRE to shoot', 'MSL / FLARE / SPECIAL buttons', 'AIM to lock on'].map(t => `<span style="white-space:nowrap">${t}</span>`).join(' &middot; ')
-  : ['Mouse or WASD: steer &amp; climb', 'Click / Space: fire', 'Right-click / Shift: aim &amp; lock-on', 'E: missile', 'F: flare', 'Q: special'].map(t => `<span style="white-space:nowrap">${t}</span>`).join(' &middot; ');
-if (IS_TOUCH) document.body.classList.add('touch');
-resize();
-requestAnimationFrame(frame);
-await CG.init();
-CG.loadingStart();
-const b0 = parseInt(await Store.get('best'), 10);
-best = isFinite(b0) && b0 > 0 ? b0 : 0;
-Sound.muted = (await Store.get('muted')) === '1';
-loadGarage(await Store.get('garage'));
-// ===== TEST BUILD: everything unlocked (separate save, never ship this file) =====
-garage.coins = Math.max(garage.coins, 99999);
-garage.planes = PLANES.map(p => p.id); garage.paints = PAINTS.map(p => p.id);
-for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = items.map(p => p.id);
-saveGarage();
-loadAudio(await Store.get('audio'));
-tutorialDone = (await Store.get('tut')) === '1';
-// test hook: open the page with #titan to jump straight to 2:55
-if (location.hash === '#titan') {
-  window.__skipToTitan = true;
-  window.__dbg = { hit: d => boss && hitBoss(d, boss), face: () => { if (boss) { player.a = Math.atan2(boss.z - player.z, boss.x - player.x); player.invul = 99; } }, info: () => ({ state, titanPhase, boss: boss && { hp: boss.hp, max: boss.max, phase: boss.phase, dead: boss.dead }, bullets: bullets.length }) };
-}
-applyLook();
-updateMuteBtn();
-lastAdTime = Date.now();
-CG.loadingStop();
-$('loading').classList.add('hidden');
-toTitle();
-// Daily rewards remain available from the menu without blocking first play.

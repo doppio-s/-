@@ -8,6 +8,11 @@ const ALT_MIN = 7, ALT_MAX = 70;
 const TITAN_AT = 180;
 let titanPhase = 'none', titanT = 0, titanWarned = false, titanSlain = false, supplyT = 14;
 const titanLock = () => titanPhase === 'intro' || titanPhase === 'fight';
+// second final boss: at 5:00 the sky clears again for a 1-on-1 duel with an elite Falcon ace
+const ACE_AT = 300;
+let acePhase = 'none', aceT = 0, aceWarned = false, aceSlain = false;
+const aceLock = () => acePhase === 'intro' || acePhase === 'fight';
+const duelLock = () => titanLock() || aceLock();
 // hit-stop / slow motion (real-time duration, game-time scale)
 let slowT = 0, slowScale = 1;
 function hitStop(dur, scale) {
@@ -334,7 +339,7 @@ function clearWorld() {
   bullets = []; parts = []; decoys = [];
   if (boss) scene.remove(boss.mesh);
   boss = null; bossWarnT = 0; combo = 0; comboT = 0;
-  $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('titan'); $('bossWarn').classList.add('hidden'); $('combo').classList.add('hidden');
+  $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('titan', 'ace', 'shield'); $('bossWarn').classList.add('hidden'); $('combo').classList.add('hidden');
   hideCine(); slowT = 0; slowScale = 1;
   clearPopups(); hideTip();
 }
@@ -378,6 +383,8 @@ function startRun() {
   gameTime = 0; kills = 0; killPts = 0; runCoinsGiven = 0; revived = false; speedLevel = 0; botSpawnCd = 3; heartCd = 20;
   bossCount = 0; nextBossAt = 75; bestCombo = 0; startTips();
   titanPhase = 'none'; titanT = 0; titanWarned = false; titanSlain = false; supplyT = 14;
+  acePhase = 'none'; aceT = 0; aceWarned = false; aceSlain = false;
+  if (window.__skipToAce) { gameTime = ACE_AT - 8; titanPhase = 'done'; speedLevel = Math.floor(gameTime / 20); lastThreatStage = 3; nextBossAt = 1e9; }
   if (window.__skipToTitan) { gameTime = TITAN_AT - 8; speedLevel = Math.floor(gameTime / 20); lastThreatStage = 3; nextBossAt = 1e9; }
   for (let i = 0; i < 7; i++) spawnPickup('ammo');
   spawnPickup('missile');
@@ -453,6 +460,7 @@ function showOver() {
   $('finalCoinTotal').textContent = garage.coins;
   $('newBest').classList.toggle('hidden', !isNew);
   $('titanBadge').classList.toggle('hidden', !titanSlain);
+  $('aceBadge').classList.toggle('hidden', !aceSlain);
   $('btnRevive').classList.add('hidden');
   $('btnRevive').innerHTML = '<span class="adTag">AD</span>CONTINUE';
   setOverButtons(true);

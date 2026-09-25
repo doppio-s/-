@@ -253,6 +253,7 @@ function updateMissiles(dt) {
       if (tgt && tgt !== player && dist3(m, tgt) < 3) { explode(m.x, m.y, m.z, 0.5); removeMissile(m); continue; }   // fooled by a flare
       if (state === 'playing' && dist3(m, player) < 2.4) { explode(m.x, m.y, m.z, 0.8); removeMissile(m); damage(); continue; }
     } else {
+      if (tgt && tgt.aceFlare && dist3(m, tgt) < 3) { explode(m.x, m.y, m.z, 0.7); removeMissile(m); continue; }   // the ace's flare took it
       for (const t of [...bots, ...turrets]) {
         if (!t.dead && dist3(m, t) < 3 * (t.scale || 1)) {
           explode(m.x, m.y, m.z, 1); Sound.sfxBoom();
@@ -299,12 +300,13 @@ function update(dt) {
     updateSpecial(dt);
     updatePlayer(dt);
     updateTitanFlow(dt);
+    updateAceFlow(dt);
     // forced speed-up notices
     const lvl = Math.floor(gameTime / 20);
     if (lvl > speedLevel && speedMul() < 2.6) { speedLevel = lvl; banner('SPEED UP', 'x' + speedMul().toFixed(1) + ' THRUST', '#62f5ec'); Sound.sfxSpeed(); }
     // enemies keep coming, more over time (none while the final boss owns the sky)
     botSpawnCd -= dt;
-    if (!titanLock() && botSpawnCd <= 0 && bots.length < (boss ? Math.min(3, maxBotsNow()) : maxBotsNow())) { spawnBot(); botSpawnCd = rand(1.2, 2.4) / (1 + gameTime / 45); }
+    if (!duelLock() && botSpawnCd <= 0 && bots.length < (boss ? Math.min(3, maxBotsNow()) : maxBotsNow())) { spawnBot(); botSpawnCd = rand(1.2, 2.4) / (1 + gameTime / 45); }
     updateBots(dt, !playerHidden());
     updateTurrets(dt);
     updateMissiles(dt);
@@ -376,7 +378,7 @@ function update(dt) {
         if (b.life > 0) for (const t of turrets) {
           if (!t.dead && dist3(b, t) < 3) { b.life = 0; hitTurret(t, gunDmg()); flashReticle('hit'); break; }
         }
-        if (b.life > 0 && boss && !boss.dead && bossDist(b) < 0) { b.life = 0; hitBoss(gunDmg(), b); flashReticle('hit'); }
+        if (b.life > 0 && boss && !boss.dead && !(boss.dodgeT > 0) && bossDist(b) < 0) { b.life = 0; hitBoss(gunDmg(), b); flashReticle('hit'); }
       }
     }
     bullets = bullets.filter(b => b.life > 0);
@@ -468,7 +470,7 @@ function updateAimUI() {
   for (const b of bots) if (Math.hypot(b.x - player.x, b.z - player.z) < 170) list.push({ o: b, cls: b.kind === 'ace' ? 'ace' : '', lbl: b.airframe ? (b.specialCharge > 0 ? 'CHARGING ' : b.airframe.toUpperCase() + ' ') : b.kind === 'ace' ? 'ACE ' : b.heavy ? 'HEAVY ' : '' });
   for (const t of turrets) if (!t.dead && Math.hypot(t.x - player.x, t.z - player.z) < 110) list.push({ o: t, cls: 'tur', lbl: 'AA ', noArrow: true });
   for (const m of missiles) if (m.enemy && m.target === player) list.push({ o: m, cls: 'msl', lbl: 'MISSILE ' });
-  if (boss && !boss.dead) list.unshift({ o: boss, cls: 'boss', lbl: boss.titan ? 'TITAN ' : 'BOSS ' });
+  if (boss && !boss.dead && !(boss.cloakT > 0)) list.unshift({ o: boss, cls: 'boss', lbl: boss.titan ? 'TITAN ' : boss.ace ? (boss.ramCharge > 0 || boss.ramT > 0 ? 'RAM! ' : boss.shieldT > 0 ? 'SHIELD ' : 'ACE ') : 'BOSS ' });
   let n = 0;
   for (const it of list) {
     if (n >= MARKS.length) break;
@@ -571,7 +573,7 @@ function drawRadar() {
   for (const p of pickups) dot(p, p.type === 'ammo' ? '#ffe24a' : p.type === 'missile' ? '#ff9f43' : '#ff7a9c', 7);
   for (const t of turrets) if (!t.dead) dot(t, '#ffa94d', 7, 'sq');
   for (const b of bots) dot(b, b.kind === 'ace' ? '#ff00aa' : '#ff3b3b', b.heavy ? 11 : 9);
-  if (boss && !boss.dead) dot(boss, boss.titan ? (Math.floor(time * 6) % 2 ? '#ff2d55' : '#ffd24a') : '#ffbb58', boss.titan ? 20 : 15, 'sq');
+  if (boss && !boss.dead && !(boss.cloakT > 0)) dot(boss, boss.titan ? (Math.floor(time * 6) % 2 ? '#ff2d55' : '#ffd24a') : '#ffbb58', boss.titan ? 20 : 15, 'sq');
   rctx.restore();
   rctx.save(); rctx.translate(cx, cx); rctx.rotate(-Math.PI / 2);
   rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.moveTo(16, 0); rctx.lineTo(-10, 10); rctx.lineTo(-5, 0); rctx.lineTo(-10, -10); rctx.closePath(); rctx.fill();
