@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>flight.io TEST (all unlocked)</title>
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+
+
+<style>
+  :root{
+    --ink:#3a2350; --yellow:#ffcc00; --pink:#ff5c8a; --mint:#2ed1a2; --sky:#5ec8ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:#5ec8ff;
+    font-family:"Arial Rounded MT Bold","Trebuchet MS","Segoe UI",Arial,sans-serif;
+    -webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+  canvas{position:fixed;inset:0;display:block;touch-action:none}
+  .hidden{display:none !important}
+
+  /* HUD */
+  #hud{position:fixed;top:12px;left:14px;pointer-events:none;color:#fff;
+    text-shadow:0 3px 0 var(--ink),2px 0 0 var(--ink),-2px 0 0 var(--ink),0 -2px 0 var(--ink)}
+  #score{font-size:44px;font-weight:900;line-height:1}
+  #score small{font-size:22px}
+  #stars{font-size:22px;font-weight:900;margin-top:4px;color:#ffe24a}
+  #topBtns{position:fixed;top:12px;right:12px;display:flex;gap:10px;z-index:20}
+  .icon{width:52px;height:52px;border-radius:16px;border:4px solid var(--ink);background:#fff;color:var(--ink);
+    font-size:22px;font-weight:900;cursor:pointer;box-shadow:0 5px 0 var(--ink);display:flex;align-items:center;justify-content:center;
+    font-family:inherit;padding:0}
+  .icon:active{transform:translateY(3px);box-shadow:0 2px 0 var(--ink)}
+  .icon svg{width:26px;height:26px;display:block}
+
+  #hint{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);pointer-events:none;
+    background:rgba(58,35,80,.82);color:#fff;font-weight:900;font-size:22px;padding:12px 22px;border-radius:999px;
+    white-space:nowrap;animation:bob 1s ease-in-out infinite alternate}
+  @keyframes bob{from{transform:translate(-50%,0)}to{transform:translate(-50%,-8px)}}
+
+  /* Screens */
+  .screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;padding:16px}
+  .screen.dim{background:rgba(58,35,80,.35)}
+  .panel{background:#fff;border:5px solid var(--ink);border-radius:28px;box-shadow:0 10px 0 var(--ink);
+    padding:26px 28px 24px;width:min(92vw,400px);text-align:center;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:12px;max-height:calc(100vh - 32px);overflow:auto}
+  .titleWrap{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
+  h1{font-size:clamp(46px,9vw,86px);line-height:.95;color:#fff;font-weight:900;letter-spacing:1px;
+    text-shadow:0 6px 0 var(--ink),4px 0 0 var(--ink),-4px 0 0 var(--ink),0 -4px 0 var(--ink),4px 4px 0 var(--ink),-4px 4px 0 var(--ink),4px -4px 0 var(--ink),-4px -4px 0 var(--ink);
+    transform:rotate(-4deg)}
+  h1 span{color:var(--yellow)}
+  h2{font-size:38px;font-weight:900}
+  .sub{font-weight:900;color:#fff;font-size:20px;background:rgba(58,35,80,.75);padding:8px 18px;border-radius:999px}
+  .bestTag{font-weight:900;color:var(--ink);background:#fff;border:4px solid var(--ink);border-radius:999px;padding:6px 18px;font-size:18px}
+  .btn{font-family:inherit;font-weight:900;font-size:26px;color:var(--ink);background:var(--yellow);
+    border:5px solid var(--ink);border-radius:20px;padding:12px 30px;min-width:220px;cursor:pointer;
+    box-shadow:0 7px 0 var(--ink);transition:transform .05s}
+  .btn:active{transform:translateY(4px);box-shadow:0 3px 0 var(--ink)}
+  .btn.green{background:var(--mint)}
+  .btn.pink{background:var(--pink);color:#fff}
+  .btn.small{font-size:18px;padding:8px 20px;min-width:0;background:#fff;box-shadow:0 5px 0 var(--ink)}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn .adTag{display:inline-block;font-size:13px;background:var(--ink);color:#fff;border-radius:8px;padding:2px 6px;vertical-align:middle;margin-right:8px}
+  .big{font-size:64px;font-weight:900;line-height:1}
+  .row{display:flex;gap:18px;justify-content:center;font-weight:900}
+  .stat{display:flex;flex-direction:column;align-items:center}
+  .stat .lbl{font-size:15px;opacity:.7;letter-spacing:1px}
+  .stat .val{font-size:30px}
+  #newBest{background:var(--pink);color:#fff;font-weight:900;padding:4px 14px;border-radius:999px;transform:rotate(-3deg);
+    animation:pulse .6s ease-in-out infinite alternate}
+  @keyframes pulse{from{transform:rotate(-3deg) scale(1)}to{transform:rotate(-3deg) scale(1.1)}}
+  #toast{position:fixed;left:50%;top:18%;transform:translateX(-50%);background:var(--ink);color:#fff;font-weight:900;
+    padding:10px 20px;border-radius:14px;z-index:30;pointer-events:none;opacity:0;transition:opacity .25s;white-space:nowrap}
+  #toast.show{opacity:1}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:28px;z-index:40;background:#5ec8ff}
+  .col{display:flex;flex-direction:column;align-items:center;gap:12px}
+  @media (max-height:700px) and (min-aspect-ratio:1/1){
+    .overPanel{flex-direction:row;width:min(94vw,640px);justify-content:space-around;gap:20px}
+  }
+  @media (max-height:460px){
+    .col{gap:8px}
+    .panel{padding:14px 20px;gap:8px}
+    h2{font-size:28px}.big{font-size:44px}.btn{font-size:21px;padding:8px 22px}
+    h1{font-size:44px}
+  }
+
+
+  #hint{bottom:12%}
+  #hud{top:12px}
+  #hearts{font-size:30px;line-height:1.1;margin-top:4px;letter-spacing:2px}
+  #hearts .h{color:#ff4d6d}#hearts .h.off{color:rgba(255,255,255,.35)}
+  #ammoRow{display:flex;align-items:center;gap:6px;font-size:26px;font-weight:900;color:#ffe24a;margin-top:2px}
+  #ammoRow .bullet{width:14px;height:28px}
+  #ammoRow.empty{color:#ff5c5c;animation:blink .4s steps(2) infinite}
+  #ammoRow.bump{transform:scale(1.25);transform-origin:left center;transition:transform .1s}
+  @keyframes blink{50%{opacity:.35}}
+  #speed{font-size:17px;font-weight:900;color:#aef0ff;margin-top:2px}
+  #warn{position:fixed;left:50%;top:22%;transform:translateX(-50%);font-size:40px;font-weight:900;color:#fff;pointer-events:none;
+    background:#ff4d6d;border:5px solid var(--ink);border-radius:18px;padding:6px 22px;animation:blink .5s steps(2) infinite;z-index:5}
+  #radar{position:fixed;left:14px;bottom:14px;top:auto;right:auto;width:130px;height:130px;pointer-events:none;z-index:5}
+  #btnFire{position:fixed;right:22px;bottom:22px;width:104px;height:104px;border-radius:50%;border:5px solid var(--ink);
+    background:#ff5c8a;color:#fff;font-family:inherit;font-weight:900;font-size:22px;box-shadow:0 7px 0 var(--ink);z-index:6;touch-action:none}
+  #btnFire.on{transform:translateY(4px);box-shadow:0 3px 0 var(--ink)}
+  @media (max-height:460px){#radar{width:96px;height:96px}#btnFire{width:84px;height:84px;font-size:18px}#warn{font-size:28px}}
+  [hidden]{display:none!important}
+  canvas#c{cursor:default}
+  #dmgFlash{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(ellipse at center,rgba(255,0,60,0) 40%,rgba(255,0,60,.6) 100%)}
+  #dmgFlash.hit{animation:dmg .5s ease-out}
+  @keyframes dmg{from{opacity:1}to{opacity:0}}
+  #reticle{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:4;transition:transform .06s linear}
+  #reticle .ring{position:absolute;left:-26px;top:-26px;width:52px;height:52px;border:3px solid rgba(255,255,255,.95);border-radius:50%;
+    box-shadow:0 0 0 2px rgba(58,35,80,.35),inset 0 0 0 2px rgba(58,35,80,.35);transition:transform .15s,border-radius .15s,border-color .15s}
+  #reticle .t{position:absolute;background:#fff;box-shadow:0 0 0 1.5px rgba(58,35,80,.4)}
+  #reticle .t1,#reticle .t2{width:3px;height:12px;left:50%;margin-left:-1.5px}
+  #reticle .t1{top:-10px}#reticle .t2{bottom:-10px}
+  #reticle .t3,#reticle .t4{height:3px;width:12px;top:50%;margin-top:-1.5px}
+  #reticle .t3{left:-10px}#reticle .t4{right:-10px}
+  #reticle .dot{position:absolute;left:-3.5px;top:-3.5px;width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px rgba(58,35,80,.5)}
+  #reticle .lockTxt{position:absolute;left:-60px;top:36px;width:120px;text-align:center;font-weight:900;font-size:14px;color:#fff;
+    background:#ff3b5c;border-radius:999px;padding:1px 0;opacity:0;transition:opacity .1s}
+  #reticle.lock .ring{border-color:#ff3b5c;border-radius:12px;transform:scale(.78) rotate(45deg)}
+  #reticle.lock .t,#reticle.lock .dot{background:#ff3b5c}
+  #reticle.lock .lockTxt{opacity:1}
+  #markers{position:fixed;inset:0;pointer-events:none;z-index:3;overflow:hidden}
+  .mk,.pk{position:absolute;left:0;top:0;width:0;height:0}
+  .mk i{position:absolute;left:0;top:0;width:40px;height:40px;transform:translate(-50%,-50%);border:3px solid rgba(255,59,92,.9);border-radius:8px}
+  .mk b{position:absolute;left:0;top:24px;transform:translateX(-50%);font-size:12px;font-weight:900;color:#fff;background:rgba(255,59,92,.9);border-radius:6px;padding:0 5px;white-space:nowrap}
+  .mk.locked i{border-color:#ffe24a;border-width:4px}
+  .mk.locked b{background:#ffb13b;color:var(--ink)}
+  .mk.off i{width:0 !important;height:0 !important;border:none;border-radius:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:20px solid #ff3b5c;filter:drop-shadow(0 0 2px rgba(58,35,80,.6))}
+  .mk.off.near i{animation:blink .35s steps(2) infinite}
+  .pk::after{content:"";position:absolute;left:0;top:0;transform:translate(-50%,-100%);border-left:9px solid transparent;border-right:9px solid transparent;border-top:13px solid #ffe24a;filter:drop-shadow(0 1px 0 #3a2350)}
+  .pk.heart::after{border-top-color:#ff7a9c}
+  #steerBar{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));width:180px;height:10px;margin-left:-90px;border-radius:99px;
+    background:rgba(58,35,80,.45);pointer-events:none;z-index:4}
+  #steerBar .mid{position:absolute;left:50%;top:-4px;width:2px;height:18px;margin-left:-1px;background:rgba(255,255,255,.6)}
+  #steerKnob{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#fff;border:3px solid var(--ink)}
+  @media (prefers-reduced-motion: reduce){#hint,.mk.off.near i,#newBest{animation:none}#reticle{transition:none}}
+  .btnRow{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .btn.small2{font-size:20px;padding:9px 18px;min-width:150px;position:relative}
+  .badge{position:absolute;top:-10px;right:-10px;width:28px;height:28px;border-radius:50%;background:#ffcc00;color:var(--ink);border:3px solid var(--ink);font-size:17px;line-height:22px}
+  .coin{display:inline-block;width:.95em;height:.95em;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff6b0,#ffcc00 55%,#e0a800);border:2px solid var(--ink);vertical-align:-0.15em;margin-right:4px}
+  .coinGain{font-weight:900;font-size:17px}
+  .panel.wide{width:min(94vw,560px);align-items:stretch;text-align:left}
+  .panel.wide h2{text-align:center}
+  .panel h3{font-size:15px;letter-spacing:2px;opacity:.65;margin-top:4px}
+  .gHead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .upRow{display:flex;align-items:center;justify-content:space-between;gap:10px;border:3px solid #e6def0;border-radius:16px;padding:8px 10px}
+  .upRow.selRow{border-color:var(--mint);background:#effcf7}
+  .upTxt{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .upTxt b{font-size:18px}.upTxt small{font-size:13px;opacity:.75;font-weight:700}
+  .stats{font-size:12px;font-weight:900;color:#6b5a80}
+  .pips{display:flex;gap:4px;margin-top:2px}.pips i{width:16px;height:8px;border-radius:4px;background:#e6def0}.pips i.on{background:var(--mint)}
+  .btn.buy{min-width:96px;font-size:17px;padding:7px 12px;box-shadow:0 5px 0 var(--ink);flex:none}
+  .swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .swatch{display:flex;flex-direction:column;align-items:center;gap:3px;border:3px solid #e6def0;border-radius:14px;background:#fff;padding:8px 4px;
+    font-family:inherit;font-weight:900;color:var(--ink);cursor:pointer}
+  .swatch.sel{border-color:var(--mint);background:#effcf7}
+  .swatch:disabled{opacity:.45;cursor:default}
+  .swatch .sw{width:34px;height:34px;border-radius:50%;border:3px solid var(--ink)}
+  .swatch .nm{font-size:13px}.swatch .pc{font-size:12px}
+  .note{text-align:center;font-weight:700;font-size:14px;opacity:.8}
+  .dGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .dTile{position:relative;border:3px solid #e6def0;border-radius:14px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:900}
+  .dTile b{font-size:12px;opacity:.7}.dTile span{font-size:15px}
+  .dTile.big{grid-column:span 2;background:linear-gradient(135deg,#fff3c4,#ffd6e3)}
+  .dTile.today{border-color:var(--pink);box-shadow:0 0 0 3px #ffd0dd}
+  .dTile.done{opacity:.55}
+  .dTile i{position:absolute;top:2px;right:6px;color:var(--mint);font-style:normal;font-size:18px}
+  #steerPad{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));width:64px;height:64px;margin-left:-32px;border-radius:50%;
+    background:rgba(58,35,80,.35);border:2px solid rgba(255,255,255,.6);pointer-events:none;z-index:4}
+  #steerPad .hx{position:absolute;left:8px;right:8px;top:50%;height:2px;margin-top:-1px;background:rgba(255,255,255,.5)}
+  #steerPad .vx{position:absolute;top:8px;bottom:8px;left:50%;width:2px;margin-left:-1px;background:rgba(255,255,255,.5)}
+  #steerKnob{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#fff;border:3px solid var(--ink)}
+  #reticle.ads .ring{transform:scale(.7);border-color:#ffe24a}
+  #reticle.ads .t,#reticle.ads .dot{background:#ffe24a}
+  .mk.ace i{border-color:#ff00aa}.mk.ace b{background:#ff00aa}
+  .mk.tur i{border-color:#ffa94d;border-style:dashed}.mk.tur b{background:#ff8c1a}
+  .mk.msl i{border-color:#ffffff;border-radius:50%;animation:blink .3s steps(2) infinite}.mk.msl b{background:#ff3b3b}
+  .mk.off.msl i{border-bottom-color:#ffffff;border-radius:0}
+  .mk.off.ace i{border-bottom-color:#ff00aa}
+  .pk.missile::after{border-top-color:#ff6b6b}
+  #mslWarn{position:fixed;left:50%;top:30%;transform:translateX(-50%);z-index:5;pointer-events:none;background:#ff3b3b;color:#fff;font-weight:900;font-size:22px;
+    padding:6px 18px;border-radius:12px;border:4px solid var(--ink);animation:blink .3s steps(2) infinite;white-space:nowrap}
+  #weaponBtns{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:6}
+  .wbtn{font-family:inherit;font-weight:900;font-size:15px;color:var(--ink);background:#fff;border:4px solid var(--ink);border-radius:14px;padding:6px 12px;
+    box-shadow:0 4px 0 var(--ink);cursor:pointer;touch-action:none;min-width:118px;text-align:left}
+  .wbtn .k{display:inline-block;background:var(--ink);color:#fff;border-radius:6px;padding:0 6px;margin-right:6px;font-size:12px}
+  .wbtn b{float:right;color:#e63956}
+  .wbtn.empty{opacity:.5}
+  .wbtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+  #btnAds{position:fixed;right:136px;bottom:calc(30px + env(safe-area-inset-bottom,0px));width:70px;height:70px;border-radius:50%;border:4px solid var(--ink);
+    background:#fff;color:var(--ink);font-family:inherit;font-weight:900;font-size:16px;box-shadow:0 5px 0 var(--ink);z-index:6;touch-action:none}
+  #btnAds.on{background:#ffe24a}
+  .touch #weaponBtns{bottom:calc(138px + env(safe-area-inset-bottom,0px))}
+  @media (max-height:460px){.touch #weaponBtns{bottom:calc(112px + env(safe-area-inset-bottom,0px));flex-direction:row}.touch #btnAds{right:118px;bottom:18px;width:60px;height:60px}
+    .panel.wide{gap:6px}.dTile{padding:6px 2px}.upRow{padding:5px 8px}}
+  @media (max-aspect-ratio:1/1){.touch #btnAds{right:26px;bottom:calc(232px + env(safe-area-inset-bottom,0px));width:64px;height:64px}}
+  .keys{font-size:14px;opacity:.85;font-weight:900;color:#fff;background:rgba(58,35,80,.6);padding:6px 14px;border-radius:999px}
+
+/* Sky Workshop visual system */
+:root{--ink:#142c3e;--yellow:#ffbb58;--pink:#ef796b;--mint:#84dacd}
+html,body{touch-action:auto}body{font-family:'Segoe UI',Arial,sans-serif}
+button{transition:background .16s,transform .16s,box-shadow .16s}
+button:focus-visible,input:focus-visible{outline:3px solid #32b9d8;outline-offset:4px}
+.btn{border:1px solid #142c3e;border-radius:12px;box-shadow:0 4px 0 #142c3e;font-size:21px;letter-spacing:.04em;padding:15px 28px}
+.btn:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-2px)}
+.btn.small{border-width:1px;box-shadow:0 3px 0 var(--ink);border-radius:10px}
+.icon{border:1px solid #ffffff50;background:#142c3ee8;color:#f7f2e8;border-radius:14px;box-shadow:0 3px 12px #142c3e22}
+.panel{background:#f8f5ed;border-width:1px;border-radius:22px;box-shadow:0 20px 80px #142c3e50}
+.screen.dim{background:#0e253660;backdrop-filter:blur(8px)}
+.eyebrow{font-size:11px;letter-spacing:.19em;font-weight:800;text-transform:uppercase}
+#title{justify-content:flex-start;padding-left:7vw;background:linear-gradient(90deg,#112e468f,transparent 77%)}
+.titleWrap{align-items:flex-start;gap:22px;text-align:left;max-width:620px;color:#fff}
+h1{font-size:clamp(64px,9vw,118px);font-weight:950;transform:none;letter-spacing:-.065em;text-shadow:0 5px 0 #142c3e;line-height:.95}
+h1 span{color:#ffbb58}
+.edition{font-size:18px;letter-spacing:.45em;font-weight:700;color:#f5dca7;margin-top:-8px}
+.sub{padding:0;background:none;font-size:20px;font-weight:500}
+.titleWrap .bestTag{font-size:13px;background:#142c3e99;color:white;border:1px solid #ffffff40;padding:10px 16px;border-radius:8px}
+.titleWrap .keys{background:none;max-width:490px;text-align:left;font-size:12px;line-height:1.8;opacity:.8}
+#btnPlay{min-width:300px;font-size:26px;padding:18px}
+.workshop{width:min(1160px,96vw);height:min(800px,93vh);background:#f8f5ed;color:#142c3e;border-radius:22px;overflow:hidden;box-shadow:0 30px 120px #09223170;display:flex;flex-direction:column;border:1px solid #fff9}
+.workshopHead{padding:24px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #142c3e18;flex-shrink:0}
+.workshopHead h2{font-size:32px;letter-spacing:-.04em;margin-top:5px}
+.workshopHead .bestTag{border:1px solid #142c3e30;border-radius:9px;padding:10px 17px;font-size:16px}
+.workshopBody{display:grid;grid-template-columns:38% 62%;flex:1;min-height:0}
+.previewSide{position:relative;padding:26px;background:radial-gradient(ellipse at 50% 30%,#33576a,#142c3e 75%);color:#f7f2e8;display:flex;flex-direction:column;min-height:0;overflow:auto}
+.previewSide h3{font-size:27px;margin-top:6px;letter-spacing:.08em}
+#planePreview{position:relative;inset:auto;width:100%;height:clamp(130px,26vh,245px);flex-shrink:0;background:radial-gradient(ellipse,#72b3c115,transparent 70%)}
+.previewNote{font-size:11px;color:#a9c3cd;text-align:center;margin:0 0 20px}
+#buildStats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 8px;border-top:1px solid #ffffff25;padding-top:20px}
+#buildStats small{display:block;font-size:9px;color:#a9c3cd;letter-spacing:.07em;margin-bottom:4px}
+#buildStats strong{font-size:18px}
+.buildTip{font-size:12px;line-height:1.7;color:#a9c3cd;margin-top:20px}
+.workshopEditor{display:flex;flex-direction:column;min-height:0;min-width:0}
+.garageTabs{display:flex;padding:0 20px;border-bottom:1px solid #142c3e18;flex-shrink:0}
+.garageTabs button{padding:22px 12px;border:0;border-bottom:3px solid transparent;background:none;font-size:11px;letter-spacing:.06em;font-weight:800;color:#667580;cursor:pointer}
+.garageTabs button.active{color:#142c3e;border-bottom-color:#df8540}
+.garagePage{overflow:auto;padding:22px;overscroll-behavior:contain;touch-action:pan-y}
+.garagePage h3{margin:0 0 16px;font-size:14px}
+.sectionNote{font-size:12px;color:#647580;line-height:1.5;margin-bottom:20px}
+fieldset{border:0;margin:0 0 20px;min-width:0}
+legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:800;margin-bottom:9px;color:#677c86}
+.partOptions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.partCard{text-align:left;border:1px solid #142c3e22;border-radius:10px;background:#fffdf7;padding:12px 10px;color:#142c3e;cursor:pointer;min-height:112px;display:flex;flex-direction:column;gap:7px;font-family:inherit}
+.partCard span{font-weight:800;font-size:12px}.partCard small{font-size:10px;line-height:1.5;color:#677c86}.partCard em{font-style:normal;font-size:9px;letter-spacing:.1em;margin-top:auto;font-weight:800;color:#8d9ba2}
+.partCard.equipped{background:#e3f0eb;border-color:#26887d;box-shadow:inset 0 0 0 1px #26887d}.partCard.equipped em{color:#227b70}.partCard:hover{border-color:#26887d}
+.workshopFoot{border-top:1px solid #142c3e18;display:flex;align-items:center;justify-content:space-between;padding:15px 24px;gap:10px;flex-shrink:0;background:#fffdf7}
+.workshopFoot span{font-size:11px;color:#788890}.workshopFoot .btn{min-width:0;font-size:16px}
+.upRow{border:1px solid #142c3e20;border-radius:12px;padding:14px;background:#fffdf7}.upRow.selRow{background:#e3f0eb;border-color:#26887d}.upTxt b{font-size:15px}.upTxt small{font-size:11px;line-height:1.6}.upTxt .stats{font-size:10px}.btn.buy{border-width:1px;font-size:13px;box-shadow:0 3px 0 var(--ink)}
+.swatch{border-width:1px;border-radius:12px;background:#fffdf7}.swatch.sel{border-color:#26887d;box-shadow:0 0 0 2px #26887d}
+#hud{padding:13px 18px;background:#142c3ec7;border:1px solid #ffffff30;border-radius:15px;text-shadow:none;min-width:150px}#score{font-size:32px}#score small{font-size:13px}#hearts{font-size:21px}#ammoRow{font-size:22px}#speed{font-size:12px;letter-spacing:.08em}
+#audioDialog{margin:auto;width:min(420px,92vw);background:#f8f5ed;color:#142c3e;border:1px solid #fff;border-radius:20px;padding:30px;box-shadow:0 30px 90px #0005}#audioDialog::backdrop{background:#0e2536aa;backdrop-filter:blur(9px)}#audioDialog h2{font-size:34px;margin:8px 0 12px}#audioDialog p{font-size:13px;line-height:1.6;color:#647580;margin-bottom:22px}#audioDialog label{display:block;font-size:13px;font-weight:700;margin:16px 0}#audioDialog output{float:right;color:#647580}#audioDialog input{display:block;width:100%;margin-top:12px;accent-color:#26887d;touch-action:auto}#audioDialog .btn{width:100%;margin-top:18px}
+@media(max-width:740px){#title{padding:24px;justify-content:center}.titleWrap{align-items:center;text-align:center;gap:20px}.titleWrap .keys{text-align:center;max-width:85vw}.edition{font-size:13px}.workshop{height:94dvh;width:96vw}.workshopHead{padding:16px 18px}.workshopHead h2{font-size:25px}.workshopBody{display:block;overflow:auto}.previewSide{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:6px}.previewSide>.eyebrow{grid-column:1/-1}.previewSide h3{font-size:20px}#planePreview{grid-column:1;grid-row:3/6;height:150px}.previewNote,.buildTip{display:none}#buildStats{grid-column:2;grid-row:2/6;border:0;padding:10px;grid-template-columns:1fr 1fr;gap:14px}.garageTabs{padding:0 8px;justify-content:space-between}.garageTabs button{padding:17px 7px;font-size:10px}.garagePage{overflow:visible;padding:16px}.partCard{padding:10px 8px}.workshopFoot{padding:12px 16px}.workshopFoot span{display:none}.workshopFoot .btn{font-size:14px}#topBtns{top:8px;right:8px;gap:6px}.icon{width:42px;height:42px}}
+@media(max-height:520px) and (min-width:741px){.workshopHead{padding:12px 20px}.workshopHead h2{font-size:24px}.previewSide{padding:16px}#planePreview{height:120px}.buildTip,.previewNote{display:none}.garageTabs button{padding:14px 9px}.workshopFoot{padding:10px 20px}h1{font-size:65px}.titleWrap{gap:12px}}
+#rotateNotice{display:none;position:fixed;inset:0;z-index:100;background:radial-gradient(ellipse at top,#305b70,#102838 75%);color:#f8f5ed;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:20px;padding:30px}
+.fleetIntro h3{font-size:19px;margin-bottom:5px;letter-spacing:-.02em}.fleetIntro p{font-size:11px;color:#687d88;margin-bottom:18px;line-height:1.6}.fleetGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.aircraftCard{display:block;overflow:hidden;padding:0;border:1px solid #142c3e22;background:#fffdf8;border-radius:14px;text-align:left;color:#142c3e;font-family:inherit;cursor:pointer;min-width:0}.aircraftCard.inspected{border-color:#26887d;box-shadow:0 0 0 2px #26887d}.aircraftVisual{position:relative;background:radial-gradient(ellipse at 50% 40%,#38596d,#162e41);overflow:hidden}.aircraftVisual:after{content:'';position:absolute;bottom:15%;left:20%;width:60%;height:10%;border-radius:50%;background:#0003;filter:blur(7px);pointer-events:none}.aircraftVisual img{width:100%;height:auto;display:block;position:relative;z-index:1;transition:transform .25s}.aircraftCard:hover img{transform:scale(1.09)}.aircraftStatus{position:absolute;top:10px;left:10px;color:var(--air-accent);font-size:8px;letter-spacing:.12em;font-weight:800;z-index:2}.aircraftInfo{padding:12px 14px}.aircraftInfo>small{font-size:8px;letter-spacing:.1em;color:#6c7c84;display:block}.aircraftInfo>b{font-size:21px;display:block;margin:4px 0;letter-spacing:.02em}.aircraftInfo p{font-size:11px;color:#6c7c84;margin:4px 0 12px}.aircraftPrice{display:flex;justify-content:space-between;border-top:1px solid #142c3e15;padding-top:10px;font-size:11px;font-weight:800}.aircraftPrice .coin{width:12px;height:12px;margin-right:5px}.offerRole{font-size:9px;letter-spacing:.15em;color:#ffcf8c;font-weight:800}#aircraftOffer p{font-size:12px;line-height:1.6;color:#cee1e9;margin:8px 0 12px}#aircraftOffer .offerBuy{width:100%;min-width:0;font-size:13px;padding:12px 8px;box-shadow:none}#aircraftOffer>small{display:block;font-size:10px;color:#b2c9d3;margin:9px 0 14px}#garage:has([data-page="fleet"]:not(.hidden)) .buildTip{display:none}#garage:has([data-page="fleet"]:not(.hidden)) .previewNote{font-size:9px;margin-top:5px;margin-bottom:12px}#garage:has([data-page="fleet"]:not(.hidden)) #planePreview{height:clamp(130px,22vh,210px)}
+@media(orientation:landscape) and (max-height:520px){.fleetGrid{gap:10px}.fleetIntro h3{font-size:14px}.fleetIntro p{font-size:10px;margin-bottom:12px}.aircraftInfo{padding:10px}.aircraftInfo>b{font-size:18px}.aircraftInfo p{font-size:10px}.aircraftStatus{font-size:7px;top:8px;left:8px}#garage:has([data-page="fleet"]:not(.hidden)) #planePreview{height:112px;min-height:112px}#aircraftOffer p{font-size:10px;margin:5px 0 8px}#aircraftOffer .offerBuy{font-size:10px;padding:9px 4px}#aircraftOffer>small{font-size:9px;margin:6px 0 10px}}
+#rotateNotice h2{font-size:34px}#rotateNotice p{font-size:14px;line-height:1.9;color:#b6cfd6}.rotatePhone{font-size:78px;color:#ffbb58;line-height:1}
+.workshopHead{justify-content:flex-start;gap:24px;padding-right:100px}#audioDialog{max-height:92dvh;overflow:auto;touch-action:pan-y}
+.previewSide{flex-shrink:0}#planePreview{min-height:220px}
+@media(orientation:landscape) and (max-height:520px){#planePreview{height:140px;min-height:140px}#garage:has([data-page="fleet"]:not(.hidden)) #planePreview{height:150px;min-height:150px}}
+@media (pointer:coarse) and (orientation:portrait){#rotateNotice{display:flex}#audioDialog[open]{visibility:hidden}}
+@media (orientation:landscape) and (max-height:520px){
+ .screen{padding:8px}.workshop{width:97vw;height:96dvh}.workshopBody{display:grid;grid-template-columns:34% 66%;overflow:hidden}.workshopHead{padding:9px 18px}.workshopHead h2{font-size:21px;margin-top:2px}.workshopHead .eyebrow{font-size:8px}.workshopHead .bestTag{padding:6px 10px;font-size:12px}.previewSide{display:flex;padding:10px 16px;gap:0;overflow:auto}.previewSide>.eyebrow,.previewNote,.buildTip{display:none}.previewSide h3{font-size:16px;margin:0}#planePreview{height:96px;min-height:96px}#buildStats{padding:8px 0 0;border-top:1px solid #ffffff25;grid-template-columns:repeat(3,1fr);gap:8px}#buildStats strong{font-size:13px}#buildStats small{font-size:8px}.garageTabs{padding:0 10px;justify-content:flex-start}.garageTabs button{padding:11px 9px;font-size:9px}.garagePage{overflow:auto;padding:12px 16px}.sectionNote{font-size:10px;margin-bottom:12px}.partCard{min-height:90px;padding:9px}.partCard span{font-size:11px}.partCard small{font-size:9px}.workshopFoot{padding:8px 16px}.workshopFoot .btn{padding:8px 16px;font-size:13px}.workshopFoot span{display:none}
+ #title{justify-content:flex-start;padding:16px 7vw}.titleWrap{align-items:flex-start;text-align:left;gap:10px}.titleWrap h1{font-size:62px}.titleWrap .eyebrow{font-size:9px}.edition{font-size:11px;margin-top:0}.sub{font-size:14px}#btnPlay{min-width:230px;padding:10px;font-size:21px}.titleWrap .btnRow .btn{padding:8px 18px;font-size:14px}.titleWrap .bestTag{padding:5px 12px;font-size:11px}.titleWrap .keys{max-width:450px;font-size:10px;text-align:left}.icon{width:38px;height:38px;border-radius:11px}#topBtns{top:max(8px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));gap:6px}#hud{top:8px;left:max(10px,env(safe-area-inset-left));padding:8px 12px;min-width:120px}#score{font-size:26px}#hearts{font-size:18px}#ammoRow{font-size:18px}#speed{font-size:10px}#radar{left:max(10px,env(safe-area-inset-left));bottom:max(8px,env(safe-area-inset-bottom));width:82px;height:82px}#btnFire{right:max(14px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));width:76px;height:76px}#hint{font-size:14px;padding:8px 16px}
+}
+@media(orientation:landscape) and (max-height:520px){.previewSide #planePreview{height:160px;min-height:160px}#garage:has([data-page="fleet"]:not(.hidden)) #planePreview{height:160px;min-height:160px}}
+#survivalClock{font-size:32px;font-weight:900;letter-spacing:.04em}#threatLabel{font-size:9px;letter-spacing:.14em;color:#ffcb81;margin-bottom:7px}#hud #score{font-size:19px}#btnSpecial{position:fixed;right:222px;bottom:max(22px,env(safe-area-inset-bottom));z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:112px;min-height:76px;border:2px solid #9fe7e2;border-radius:15px;background:#173b4d;color:#d8fff7;box-shadow:0 4px 0 #102633;font-family:inherit;touch-action:none;cursor:pointer}#btnSpecial.hidden{display:none}#btnSpecial b{font-size:12px}#btnSpecial small{font-size:10px;color:#ffcf8c}#btnSpecial .specialKey{font-size:10px;opacity:.7}#btnSpecial:disabled{opacity:.65}#btnSpecial.active{background:#277f76;border-color:#fff}.abilityInfo{padding:10px;border:1px solid #72d8cc66;border-radius:9px;margin:10px 0 14px;background:#ffffff09}.abilityInfo>b{font-size:11px;color:#86eee1}.abilityInfo small{font-size:10px;color:#a6c5cf}#aircraftOffer .abilityInfo p{font-size:11px;margin:6px 0}@media(orientation:landscape) and (max-height:520px){#survivalClock{font-size:25px}#hud #score{font-size:15px}#btnSpecial{right:188px;bottom:max(14px,env(safe-area-inset-bottom));width:97px;min-height:64px}#btnSpecial b{font-size:10px}.abilityInfo{padding:8px}}
+.previewBoost{font-family:inherit;background:#ffffff0d;color:#b6f2eb;border:1px solid #ffffff30;border-radius:8px;font-size:9px;letter-spacing:.08em;padding:9px;margin:0 0 12px;cursor:pointer;flex-shrink:0}.previewBoost:hover{background:#ffffff20}
+
+#purchaseDialog{color:#edf5fa;background:#132b3b;border:1px solid #557080;border-radius:18px;padding:24px;width:min(460px,90vw);max-height:85dvh;overflow:auto;box-sizing:border-box}#purchaseDialog::backdrop{background:#03121bcc}#purchaseDialog h2{font-size:24px;margin:12px 0}#purchaseDialog p{line-height:1.5}.purchaseActions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}.purchaseActions .btn{flex:1}#confirmPurchase:disabled{opacity:.4}
+
+#purchaseDialog{margin:auto}
+#novaFlash{position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;background:radial-gradient(circle at center,rgba(201,168,255,.55),rgba(105,234,255,.25) 45%,rgba(20,10,60,0) 75%)}#novaFlash.on{animation:nova .7s ease-out}@keyframes nova{from{opacity:1}to{opacity:0}}
+.abilTag{display:inline-block;font-style:normal;font-size:10px;font-weight:800;letter-spacing:.1em;color:#1f7f75;background:#e3f0eb;border-radius:6px;padding:3px 7px;margin:-6px 0 10px}
+
+/* ---- lock-on (SF HUD) ---- */
+#lockUI{position:fixed;inset:0;pointer-events:none;z-index:4;font-family:Consolas,"Courier New",monospace;--c:#5ff5ff;--hot:#ff3b5c}
+#lockRing{position:absolute;left:0;top:0}
+#lockRing svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 3px #5ff5ffaa)}
+#lockRing circle{fill:none;stroke:var(--c)}
+#lockRing .o{stroke-width:1.2;opacity:.8}#lockRing .i{stroke-width:.6;opacity:.45;stroke-dasharray:2 4}
+#lockRing .spin{stroke-width:2.2;stroke-dasharray:18 40;opacity:.8;transform-origin:0 0;animation:lkspin 3s linear infinite}
+#lockRing .ticks path{stroke:var(--c);stroke-width:2}
+@keyframes lkspin{to{transform:rotate(360deg)}}
+#lockRing span{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;color:var(--c);font-size:12px;font-weight:700;letter-spacing:.18em;text-shadow:0 0 6px #5ff5ff99,0 1px 0 #0a2030}
+#lockRing .tl{top:14%}#lockRing .bl{bottom:-24px}
+#lockRing .bl.hot{color:#fff;background:var(--hot);padding:2px 10px;border-radius:3px;text-shadow:none;animation:blink .4s steps(2) infinite}
+.lk{position:absolute;left:0;top:0;color:var(--c)}
+.lk svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 3px #5ff5ffaa);transition:transform .15s}
+.lk .br{fill:none;stroke:var(--c);stroke-width:4}
+.lk .trk{fill:none;stroke:var(--c);stroke-width:2;opacity:.25}
+.lk .prog{fill:none;stroke:var(--c);stroke-width:5}
+.lk .dia{fill:none;stroke:var(--hot);stroke-width:3;opacity:0}
+.lk b{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;font-size:12px;font-weight:700;letter-spacing:.08em;white-space:nowrap;background:#0a2030cc;border:1px solid var(--c);padding:0 6px;border-radius:2px}
+.lk i{position:absolute;left:100%;top:0;margin-left:4px;font-style:normal;font-size:10px;opacity:.8;white-space:nowrap}
+.lk.full{--c:#ff3b5c}
+.lk.full svg{transform:rotate(45deg) scale(.86);filter:drop-shadow(0 0 5px #ff3b5ccc)}
+.lk.full .dia{opacity:1}
+.lk.full b{background:#ff3b5c;color:#fff;border-color:#fff;animation:blink .5s steps(2) infinite}
+.wbtn{position:relative}.wbtn i{position:absolute;top:-11px;right:-8px;font-style:normal;font-family:Consolas,monospace;font-size:12px;font-weight:700;color:#fff;background:#ff3b5c;border:2px solid #fff;border-radius:999px;padding:0 6px;line-height:18px}.wbtn i:empty{display:none}
+.wbtn.locked{background:#ff3b5c;color:#fff;box-shadow:0 4px 0 #142c3e,0 0 14px #ff3b5caa}.wbtn.locked b{color:#fff}
+@media (prefers-reduced-motion: reduce){#lockRing .spin{animation:none}}
+.touch #lockRing .bl{display:none}
+
+/* ---- v2: touch control cluster (one layout for every landscape size, nothing overlaps) ---- */
+.touch{--g:max(12px,env(safe-area-inset-right,0px));--b:max(12px,env(safe-area-inset-bottom,0px));--fs:88px;--as:64px}
+@media (max-height:430px){.touch{--fs:76px;--as:58px}}
+.touch #btnFire{right:var(--g);bottom:var(--b);width:var(--fs);height:var(--fs);font-size:20px}
+.touch #btnSpecial{right:var(--g);bottom:calc(var(--b) + var(--fs) + 12px);width:var(--fs);min-height:50px;padding:4px}
+.touch #btnAds{right:calc(var(--g) + var(--fs) + 12px);bottom:var(--b);width:var(--as);height:var(--as);font-size:15px}
+.touch #weaponBtns{right:calc(var(--g) + var(--fs) + 12px);bottom:calc(var(--b) + var(--as) + 12px);flex-direction:column;gap:8px}
+.touch .wbtn{min-width:0;width:calc(var(--as) + 24px);padding:7px 8px;font-size:13px}
+.touch .wbtn .k,.touch #btnSpecial .specialKey{display:none}
+#btnSpecial.ready{box-shadow:0 4px 0 #102633,0 0 0 2px #9fe7e2aa,0 0 16px #62f5ec66}
+/* low ammo / low health warnings */
+#ammoRow.low{color:#ffb14a}
+#lowHp{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(ellipse at center,rgba(255,0,60,0) 55%,rgba(255,20,60,.45) 100%)}
+#lowHp.on{animation:lowhp 1s ease-in-out infinite}
+@keyframes lowhp{0%,100%{opacity:.25}50%{opacity:.85}}
+/* hit marker on the crosshair */
+#reticle .hitX{position:absolute;left:-14px;top:-14px;width:28px;height:28px;opacity:0;pointer-events:none}
+#reticle .hitX:before,#reticle .hitX:after{content:"";position:absolute;left:12px;top:-2px;width:4px;height:32px;background:#fff;border-radius:2px;box-shadow:0 0 0 1.5px rgba(20,44,62,.6)}
+#reticle .hitX:before{transform:rotate(45deg)}#reticle .hitX:after{transform:rotate(-45deg)}
+#reticle.hit .hitX{animation:hitx .16s ease-out}
+#reticle.kill .hitX{animation:hitx .35s ease-out}#reticle.kill .hitX:before,#reticle.kill .hitX:after{background:#ff4d6d}
+@keyframes hitx{from{opacity:1;transform:scale(.7)}to{opacity:0;transform:scale(1.25)}}
+/* floating score popups */
+#popups{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+.pop{position:absolute;left:0;top:0;font-weight:900;font-size:22px;color:#fff;white-space:nowrap;text-shadow:0 2px 0 #142c3e,2px 0 0 #142c3e,-2px 0 0 #142c3e,0 -2px 0 #142c3e;animation:pop 1s ease-out forwards}
+.pop.big{font-size:34px;color:#ffbb58}
+.pop.mega{font-size:56px;color:#ffd24a;text-shadow:0 3px 0 #142c3e,3px 0 0 #142c3e,-3px 0 0 #142c3e,0 -3px 0 #142c3e,0 0 24px #ff7a2d}
+@keyframes pop{0%{opacity:0;margin-top:0}12%{opacity:1}100%{opacity:0;margin-top:-60px}}
+/* combo counter */
+#combo{position:fixed;right:max(16px,env(safe-area-inset-right,0px));top:78px;min-width:120px;transform-origin:right center;z-index:5;pointer-events:none;text-align:right;color:#fff;font-weight:900;font-size:30px;line-height:1;
+  text-shadow:0 3px 0 #142c3e,2px 0 0 #142c3e,-2px 0 0 #142c3e,0 -2px 0 #142c3e;transition:opacity .2s}
+#combo small{display:block;font-size:11px;letter-spacing:.2em;color:#ffcb81}
+#combo .bar{height:5px;margin-top:6px;border-radius:3px;background:#ffffff40;overflow:hidden}#combo .bar i{display:block;height:100%;background:#ffbb58}
+#combo.bump{animation:cbump .25s ease-out}
+@keyframes cbump{from{scale:1.35}to{scale:1}}
+/* boss */
+#bossBar{position:fixed;left:50%;top:14px;transform:translateX(-50%);width:min(440px,46vw);z-index:5;pointer-events:none;color:#fff;font-weight:900;text-align:center}
+#bossBar b{font-size:13px;letter-spacing:.22em;text-shadow:0 2px 0 #142c3e}
+#bossBar .track{position:relative;margin-top:5px;height:14px;border-radius:8px;background:#142c3ecc;border:2px solid #fff;overflow:hidden}
+#bossBar .fill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffbb58);transition:width .12s}
+#bossBar .tick{display:none;position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff}
+#bossBar.titan{width:min(640px,62vw)}
+#bossBar.titan b{font-size:16px;color:#ffd6de;text-shadow:0 2px 0 #142c3e,0 0 14px #ff2d55}
+#bossBar.titan .track{height:18px;border-color:#ffd24a;box-shadow:0 0 18px #ff2d5588}
+#bossBar.titan .fill{background:linear-gradient(90deg,#ff2d55,#ff7a2d,#ffd24a)}
+#bossBar.titan .tick{display:block}
+#bossWarn{position:fixed;left:50%;top:34%;transform:translateX(-50%);z-index:6;pointer-events:none;text-align:center;color:#fff;font-weight:900;font-size:44px;letter-spacing:.08em;
+  background:#c8243f;border:4px solid #142c3e;border-radius:16px;padding:8px 26px;animation:blink .45s steps(2) infinite;white-space:nowrap}
+#bossWarn small{display:block;font-size:14px;letter-spacing:.2em}
+#threatLabel.boss{color:#ff8a9c}
+.mk.boss i{border-color:#ffbb58;border-width:4px}.mk.boss b{background:#ff8c1a}.mk.off.boss i{border-bottom-color:#ffbb58}
+/* first-run tips */
+#tip{position:fixed;left:50%;bottom:24%;transform:translateX(-50%);z-index:6;pointer-events:none;background:#142c3ee6;color:#fff;font-weight:800;font-size:18px;
+  padding:10px 20px;border-radius:12px;border:1px solid #ffffff50;white-space:nowrap;opacity:0;transition:opacity .3s}
+#tip.show{opacity:1}#tip b{color:#ffbb58}
+@media (max-height:460px){#tip{font-size:14px;bottom:30%}#bossWarn{font-size:30px}#combo{top:58px;font-size:24px}#bossBar{top:8px;width:min(340px,40vw)}}
+
+/* ---- v3: juice — speed lines, kill flash, streak banners, final-boss cinematic ---- */
+#speedLines{position:fixed;inset:-12%;pointer-events:none;z-index:1;opacity:0;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(255,255,255,.75) 0deg .5deg,transparent .5deg 6deg);
+  -webkit-mask:radial-gradient(circle at 50% 50%,transparent 30%,#000 72%);mask:radial-gradient(circle at 50% 50%,transparent 30%,#000 72%);
+  animation:slJit .09s steps(2) infinite}
+@keyframes slJit{from{transform:rotate(0deg) scale(1)}to{transform:rotate(1.4deg) scale(1.02)}}
+#killFlash{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(circle at center,rgba(255,255,255,0) 35%,rgba(255,226,150,.38) 100%)}
+#killFlash.on{animation:dmg .32s ease-out}
+#streak{position:fixed;left:50%;top:27%;transform:translate(-50%,-50%);z-index:6;pointer-events:none;text-align:center;opacity:0;white-space:nowrap}
+#streak b{display:block;font-size:clamp(34px,6.2vw,72px);font-weight:950;font-style:italic;letter-spacing:.01em;color:#fff;line-height:1;
+  -webkit-text-stroke:2px #142c3e;text-shadow:0 5px 0 #142c3e,0 0 28px var(--sc,#ffbb58),0 0 60px var(--sc,#ffbb58)}
+#streak small{display:block;font-size:14px;font-weight:900;letter-spacing:.32em;color:var(--sc,#ffbb58);text-shadow:0 2px 0 #142c3e;margin-top:8px}
+#streak.show{animation:streak 1.35s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes streak{0%{opacity:0;transform:translate(-50%,-50%) scale(2.4) rotate(-8deg)}12%{opacity:1;transform:translate(-50%,-50%) scale(.94) rotate(-3deg)}20%{transform:translate(-50%,-50%) scale(1.06) rotate(-3deg)}80%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(-3deg)}100%{opacity:0;transform:translate(-50%,-62%) scale(1) rotate(-3deg)}}
+#score.pulse{animation:cbump .25s ease-out;color:#ffe24a}
+#cine{position:fixed;inset:0;z-index:8;pointer-events:none;overflow:hidden}
+#cine .bar{position:absolute;left:0;right:0;height:13vh;background:#05070c;transition:transform .55s cubic-bezier(.2,.9,.3,1)}
+#cine .top{top:0;transform:translateY(-100%)}#cine .bot{bottom:0;transform:translateY(100%)}
+#cine.on .top,#cine.on .bot{transform:none}
+#cine .card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.7);opacity:0;text-align:center;transition:opacity .45s .25s,transform .6s .25s cubic-bezier(.2,1.5,.4,1);white-space:nowrap}
+#cine.on .card{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#cine small{display:block;font-size:13px;letter-spacing:.45em;color:#ff5c7a;font-weight:900}
+#cine h3{font-size:clamp(52px,10vw,124px);font-weight:950;font-style:italic;color:#fff;letter-spacing:-.03em;line-height:1;margin:8px 0;
+  -webkit-text-stroke:2px #3a0010;text-shadow:0 0 30px #ff2d55,0 0 80px #ff2d55,0 6px 0 #142c3e}
+#cine p{color:#ffd6de;font-weight:800;letter-spacing:.24em;font-size:13px}
+#cine::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 40%,rgba(255,0,60,.4));animation:lowhp .55s ease-in-out infinite}
+#titanBadge{background:linear-gradient(90deg,#ff2d55,#ffb13b);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(-2deg);box-shadow:0 0 18px #ff7a2d88}
+</style>
+<!-- THIRD-PARTY LICENSES
+Three.js r170
+MIT License
+
+Copyright © 2010-2024 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+CrazyGames SDK is loaded from the official CrazyGames endpoint and is not
+included in this distribution. Its service terms apply separately.
+
+-->
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="speedLines"></div>
+<div id="hud" class="hidden">
+  <div id="survivalClock">0:00</div><div id="threatLabel">SURVIVE</div><div id="score">0<small> pts</small></div>
+  <div id="hearts"></div>
+  <div id="ammoRow"><svg viewBox="0 0 12 24" class="bullet"><path d="M6 1c3 3 4 6 4 9v11H2V10c0-3 1-6 4-9z" fill="#ffd23f" stroke="#3a2350" stroke-width="1.6"/><rect x="2" y="17" width="8" height="4" fill="#ff9f43"/></svg><span id="ammo">0</span></div>
+  <div id="speed">SPEED x1.0</div>
+</div>
+<div id="dmgFlash"></div>
+<div id="killFlash"></div>
+<div id="lowHp"></div>
+<div id="novaFlash"></div>
+<div id="popups"></div>
+<div id="streak"></div>
+<div id="combo" class="hidden"><small>COMBO</small><span id="comboN">x2</span><div class="bar"><i id="comboBar"></i></div></div>
+<div id="bossBar" class="hidden"><b id="bossName">SKY FORTRESS</b><div class="track"><div class="fill" id="bossFill"></div><i class="tick" style="left:33.33%"></i><i class="tick" style="left:66.67%"></i></div></div>
+<div id="bossWarn" class="hidden"><small>WARNING</small>BOSS INBOUND</div>
+<div id="cine" class="hidden"><div class="bar top"></div><div class="bar bot"></div><div class="card"><small>FINAL WAVE &middot; 3:00</small><h3>OMEGA TITAN</h3><p>THE SKY IS CLEARED &mdash; IT'S JUST YOU AND IT</p></div></div>
+<div id="tip"></div>
+<div id="markers" hidden></div>
+<div id="lockUI" hidden><div id="lockRing"><svg viewBox="-100 -100 200 200"><circle class="o" r="97"/><circle class="i" r="88"/><g class="ticks"><path d="M0-100V-84M0 100V84M-100 0H-84M100 0H84"/></g><circle class="spin" r="93"/></svg><span class="tl">LOCK-ON MODE</span><span class="bl" id="lockCount"></span></div></div>
+<div id="reticle" hidden><div class="ring"><span class="t t1"></span><span class="t t2"></span><span class="t t3"></span><span class="t t4"></span></div><div class="dot"></div><div class="hitX"></div></div>
+<div id="steerPad" hidden><span class="hx"></span><span class="vx"></span><div id="steerKnob"></div></div>
+<div id="mslWarn" hidden>MISSILE! &nbsp;DROP FLARES [F]</div>
+<div id="weaponBtns" class="hidden">
+  <button id="btnMsl" class="wbtn" aria-label="Missile"><span class="k">E</span>MSL <b id="mslN">0</b><i id="lockN"></i></button>
+  <button id="btnFlare" class="wbtn" aria-label="Flare"><span class="k">F</span>FLARE <b id="flrN">0</b></button>
+</div>
+<button id="btnAds" class="hidden" aria-label="Aim">AIM</button>
+<div id="warn" class="hidden">TURN BACK!</div>
+<canvas id="radar" width="260" height="260" class="hidden"></canvas>
+<button id="btnFire" class="hidden" aria-label="Fire">FIRE</button>
+
+<button id="btnSpecial" class="hidden" aria-label="Aircraft special ability"><span class="specialKey">Q</span><b id="specialName">SPECIAL</b><small id="specialState">READY</small></button>
+<div id="topBtns">
+  <button id="btnPause" class="icon hidden" aria-label="Pause">
+    <svg viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="currentColor"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="currentColor"/></svg>
+  </button>
+  <button id="btnAudio" class="icon" aria-label="Audio settings">&#9881;</button>
+  <button id="btnMute" class="icon" aria-label="Sound"></button>
+</div>
+
+<div id="hint" class="hidden"></div>
+
+<div id="title" class="screen hidden">
+  <div class="titleWrap">
+    <div class="eyebrow">FREE-ROAM AIR COMBAT</div><h1>FLIGHT<span>.IO</span></h1><div class="edition">SKY WORKSHOP</div><div style="background:#ff3b5c;color:#fff;font-weight:800;font-size:13px;letter-spacing:.12em;padding:5px 12px;border-radius:6px">TEST BUILD · ALL UNLOCKED</div>
+    <div class="sub" id="titleSub">Outfly the hunt. Survive 3:00 to face the OMEGA TITAN.</div>
+    <button id="btnPlay" class="btn">PLAY</button>
+    <div class="btnRow">
+      <button id="btnGarage" class="btn green small2">GARAGE</button>
+      <button id="btnDaily" class="btn pink small2">DAILY<span id="dailyBadge" class="badge" hidden>!</span></button>
+    </div>
+    <div class="bestTag">BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
+    <div class="keys" id="titleKeys">Mouse or Arrow keys / WASD</div>
+  </div>
+</div>
+
+<div id="pause" class="screen dim hidden">
+  <div class="panel">
+    <h2>PAUSED</h2>
+    <button id="btnResume" class="btn green">RESUME</button>
+    <button id="btnPauseMenu" class="btn small">MENU</button>
+  </div>
+</div>
+
+<div id="over" class="screen dim hidden">
+  <div class="panel overPanel">
+    <div class="col">
+      <h2>SORTIE COMPLETE</h2>
+      <div class="stat"><span class="lbl">SCORE</span><span class="big" id="finalScore">0</span></div>
+      <div id="newBest" class="hidden">NEW BEST!</div>
+      <div id="titanBadge" class="hidden">OMEGA TITAN SLAIN</div>
+      <div class="coinGain"><span class="coin"></span>+<span id="finalCoins">0</span> coins &middot; total <span id="finalCoinTotal">0</span></div>
+      <div class="row">
+        <div class="stat"><span class="lbl">TIME</span><span class="val" id="finalTime">0s</span></div>
+        <div class="stat"><span class="lbl">KILLS</span><span class="val" id="finalKills">0</span></div>
+        <div class="stat"><span class="lbl">BOSSES</span><span class="val" id="finalBosses">0</span></div>
+        <div class="stat"><span class="lbl">BEST</span><span class="val" id="finalBest">0</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <button id="btnRevive" class="btn pink"><span class="adTag">AD</span>CONTINUE</button>
+      <button id="btnAgain" class="btn">PLAY AGAIN</button>
+      <button id="btnOverGarage" class="btn small">GARAGE</button>
+    </div>
+  </div>
+</div>
+
+<div id="garage" class="screen dim hidden">
+ <div class="workshop">
+  <header class="workshopHead"><div><div class="eyebrow">FLIGHT.IO / SKY WORKSHOP</div><h2>Make it yours.</h2></div><div class="bestTag"><span class="coin"></span><span id="gCoins">0</span></div></header>
+  <div class="workshopBody">
+   <section class="previewSide"><div class="eyebrow">AIRCRAFT PREVIEW</div><h3 id="previewName">CLASSIC</h3><canvas id="planePreview" aria-label="Rotating 3D preview of the selected aircraft"></canvas><button id="btnPreviewBoost" type="button" class="previewBoost">TEST EXHAUST &amp; SOUND</button><div id="aircraftOffer" class="hidden"></div><p class="previewNote">Live build · parts change your aircraft</p><div id="buildStats"></div><div class="buildTip">Pick your trade-off.<br>Earn coins in survival. Buy components and build your aircraft.</div></section>
+   <section class="workshopEditor"><nav class="garageTabs" aria-label="Workshop sections"><button data-section="parts" class="active" aria-pressed="true">COMPONENTS</button><button data-section="fleet" aria-pressed="false">AIRCRAFT</button><button data-section="upgrades" aria-pressed="false">UPGRADES</button><button data-section="paints" aria-pressed="false">LIVERY</button></nav>
+    <div class="garagePage" data-page="parts"><p class="sectionNote">Four slots. Your flying style. Select a component to review its price. Confirm to buy and equip.</p><div id="partList"></div></div>
+    <div class="garagePage hidden" data-page="fleet"><div class="fleetIntro"><h3>YOUR NEXT WINGMAN.</h3><p>Explore every airframe. Tap to inspect before you unlock.</p></div><div id="planeList" class="fleetGrid"></div></div>
+    <div class="garagePage hidden" data-page="upgrades"><h3>PERMANENT UPGRADES</h3><div id="upList" class="list"></div></div>
+    <div class="garagePage hidden" data-page="paints"><h3>FIND YOUR COLORS</h3><div id="paintList" class="swatches"></div></div>
+   </section>
+  </div>
+  <footer class="workshopFoot"><button id="btnGarageBack" class="btn small">BACK</button><span>Auto-saved · Ready for your next sortie</span><button id="btnGaragePlay" class="btn">TAKE OFF &#8599;</button></footer>
+ </div>
+</div>
+
+<dialog id="purchaseDialog" aria-labelledby="purchaseTitle"><div class="eyebrow">WORKSHOP / PURCHASE</div><h2 id="purchaseTitle"></h2><p id="purchaseDetail"></p><p id="purchaseBalance"></p><div class="purchaseActions"><button id="cancelPurchase" class="btn small" autofocus>CANCEL</button><button id="confirmPurchase" class="btn">BUY</button></div></dialog>
+
+<div id="daily" class="screen dim hidden">
+  <div class="panel wide">
+    <h2>DAILY BONUS</h2>
+    <p class="note">Log in every day. Day 7 unlocks the FALCON X jet!</p>
+    <div id="dailyList" class="dGrid"></div>
+    <div class="btnRow"><button id="btnDailyClose" class="btn small">CLOSE</button><button id="btnClaim" class="btn pink">CLAIM</button></div>
+  </div>
+</div>
+
+<dialog id="audioDialog"><form method="dialog"><div class="eyebrow">COCKPIT AUDIO</div><h2>Your sound.</h2><p>Mix the soundtrack, combat and engine independently.</p><label>Music <output id="musicValue">35%</output><input id="musicVolume" type="range" min="0" max="100" value="35"></label><label>Combat &amp; interface <output id="sfxValue">80%</output><input id="sfxVolume" type="range" min="0" max="100" value="80"></label><label>Engine <output id="engineValue">45%</output><input id="engineVolume" type="range" min="0" max="100" value="45"></label><button id="btnTestWeapon" class="btn small" type="button">TEST WEAPON SOUND</button><button class="btn" value="close">DONE</button></form></dialog>
+
+<div id="rotateNotice" role="status"><div class="rotatePhone" aria-hidden="true">&#8635;</div><div class="eyebrow">FLIGHT.IO</div><h2>Rotate to fly</h2><p>Turn your phone sideways to play.</p></div>
+<div id="toast"></div>
+<div id="loading">Loading&hellip;</div>
+
+<!-- three.js r170 (MIT License, Copyright 2010-2024 Three.js Authors), bundled so the game has no external dependency -->
+
+<script id="three-src">/*@@THREE@@*/</script>
+<script type="module">
+/*@@GAME@@*/
+</script>
+</body>
+</html>
