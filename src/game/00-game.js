@@ -66,7 +66,20 @@ const CG = {
       this.call(s2 => s2.game.happytime())
     },
     ad(type) {
-      return Promise.resolve("noads")
+      /*TEST{*/ return Promise.resolve("noads"); /*}TEST*/
+      if (!this.active) return Promise.resolve("noads");   // no ad network outside CrazyGames: never block the player
+      return new Promise(resolve => {
+        let done = false, started = false;
+        const finish = r => { if (done) return; done = true; clearTimeout(timer); resolve(r); };
+        const timer = setTimeout(() => { started || finish("error"); }, 8e3);
+        try {
+          this.sdk.ad.requestAd(type, {
+            adStarted: () => { started = true; Sound.setAdMute(true); },
+            adFinished: () => { Sound.setAdMute(false); finish("ok"); },
+            adError: err => { Sound.setAdMute(false); console.warn("[CG] ad error", err); finish("error"); }
+          });
+        } catch (e) { Sound.setAdMute(false); finish("error"); }
+      });
     }
   },
   Store = {
@@ -78,7 +91,7 @@ const CG = {
         }
       } catch {}
       try {
-        return localStorage.getItem("pptest_" + k)
+        return localStorage.getItem((/*TEST{*/"pptest_" || /*}TEST*/"pp_") + k)
       } catch {
         return null
       }
@@ -92,7 +105,7 @@ const CG = {
         }
       } catch {}
       try {
-        localStorage.setItem("pptest_" + k, v)
+        localStorage.setItem((/*TEST{*/"pptest_" || /*}TEST*/"pp_") + k, v)
       } catch {}
     }
   },
@@ -7028,10 +7041,10 @@ $("upCards").addEventListener("click", e => {
   if (i < 0) return;
   const b = $("upCards").children[i];
   b && (e.preventDefault(), pickUpgrade(b.dataset.pick))
-}), $("bossWarp").addEventListener("click", e => {
+})/*TEST{*/, $("bossWarp").addEventListener("click", e => {
   const b = e.target.closest("[data-warp]");
   !b || state !== "title" || (e.preventDefault(), Sound.init(), Sound.sfxClick(), startRun(+b.dataset.warp))
-}), $("bossWarp").addEventListener("pointerdown", e => e.stopPropagation());
+}), $("bossWarp").addEventListener("pointerdown", e => e.stopPropagation())/*}TEST*/;
 const LINEUP = [
   ["dogfight", "slalom", "strike"],
   ["bombers", "slalom", "survive"],

@@ -42,10 +42,19 @@ def minify(js):
 page = (root / 'src/index.html').read_text()
 source = '\n'.join(p.read_text() for p in sorted((root / 'src/game').glob('*.js')))
 
+# public build: every /*TEST{*/.../*}TEST*/ and <!--TEST{-->...<!--}TEST--> region is cut out,
+# /*PUBLIC{ ... }PUBLIC*/ regions are switched on (real ads, normal save slot, no unlocks or test hooks)
+def public(text):
+    text = re.sub(r'/\*TEST\{\*/.*?/\*\}TEST\*/', '', text, flags=re.S)
+    text = re.sub(r'<!--TEST\{-->.*?<!--\}TEST-->', '', text, flags=re.S)
+    return text.replace('/*PUBLIC{', '').replace('}PUBLIC*/', '')
+
+
 # ace-duel test build: every PLAY starts at stage 3's boss, FALCON ZERO
 hook = "{ const hw = { '#fortress': 1, '#titan': 2, '#ace': 3, '#carrier': 4 }[location.hash];"
 assert hook in source
 builds = {
+    'flight-io.html': (public(source), public(page).replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io</title>', 1)),
     'flight-test.html': (source, page),
     'flight-ace-test.html': (source.replace(hook, '{ const hw = 3;', 1),
                              page.replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io TEST · ACE DUEL</title>', 1)
@@ -61,5 +70,9 @@ for out, (src, html) in builds.items():
     size = len(text.encode())
     if size >= LIMIT:
         raise SystemExit(f'{out}: {size} bytes, over the {LIMIT} byte limit')
+    if out == 'flight-io.html':
+        for bad in ('TEST{', '}TEST', 'pptest_', 'TEST BUILD', 'bossWarp', '__dbg', 'coins,99999', 'coins, 99999', 'all unlocked'):
+            if bad in game or bad in html:   # the game and the page (three.js has its own 0.99999s)
+                raise SystemExit(f'{out}: test-only code left in the public build: {bad!r}')
     (root / out).write_text(text)
     print('wrote', out, size, 'bytes')

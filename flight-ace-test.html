@@ -298,12 +298,13 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #stageFade{position:fixed;inset:0;z-index:9;pointer-events:none;background:#fff;opacity:0}
 #stageFade.on{animation:stfade 1.3s ease-out}
 @keyframes stfade{from{opacity:1}to{opacity:0}}
-#bossWarp{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));z-index:11;display:flex;flex-direction:column;gap:8px;width:170px;padding:10px;border-radius:14px;background:#142c3ee6;border:2px solid #ff3b5c;box-shadow:0 10px 30px #0006;text-align:left}
+/*TEST{*/#bossWarp{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));z-index:11;display:flex;flex-direction:column;gap:8px;width:170px;padding:10px;border-radius:14px;background:#142c3ee6;border:2px solid #ff3b5c;box-shadow:0 10px 30px #0006;text-align:left}
 #bossWarp b{color:#ff8a9c;font-size:11px;letter-spacing:.16em}
 #bossWarp .btn{width:100%;min-width:0;font-size:13px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;background:#fff}
 #bossWarp .btn small{font-size:11px;opacity:.6}
-@media (max-height:460px){#bossWarp{width:160px;padding:8px;gap:5px}#bossWarp .btn{font-size:11px;padding:5px 8px}#bossWarp b{font-size:9px}}
-#title .titleWrap{max-width:calc(93vw - 200px)}
+@media (max-height:460px){#bossWarp{width:160px;padding:8px;gap:5px}#bossWarp .btn{font-size:11px;padding:5px 8px}#bossWarp b{font-size:9px}}/*}TEST*/
+/*TEST{*/#title .titleWrap{max-width:calc(93vw - 200px)}/*}TEST*/
+/*PUBLIC{ #hitLog{display:none !important} }PUBLIC*/
 .btn.violet{background:#8f7bff;color:#fff}
 body.gunner #reticle,body.gunner #leadPip,body.gunner #steerPad{display:none !important}
 .netPanel{max-width:min(620px,94vw);max-height:calc(100dvh - 20px);overflow-y:auto}
@@ -644,7 +645,7 @@ included in this distribution. Its service terms apply separately.
 
 <div id="title" class="screen hidden">
   <div class="titleWrap">
-    <div class="eyebrow">FREE-ROAM AIR COMBAT</div><h1>FLIGHT<span>.IO</span></h1><div class="edition">SKY WORKSHOP</div><div style="background:#ff3b5c;color:#fff;font-weight:800;font-size:13px;letter-spacing:.12em;padding:5px 12px;border-radius:6px">TEST BUILD · ACE DUEL (starts at the stage 3 boss)</div>
+    <div class="eyebrow">FREE-ROAM AIR COMBAT</div><h1>FLIGHT<span>.IO</span></h1><div class="edition">SKY WORKSHOP</div><!--TEST{--><div style="background:#ff3b5c;color:#fff;font-weight:800;font-size:13px;letter-spacing:.12em;padding:5px 12px;border-radius:6px">TEST BUILD · ACE DUEL (starts at the stage 3 boss)</div><!--}TEST-->
     <div class="sub" id="titleSub">5 stages, 15 different missions, 5 bosses. How far can you fly?</div>
     <button id="btnPlay" class="btn">PLAY</button>
     <div class="btnRow">
@@ -654,13 +655,13 @@ included in this distribution. Its service terms apply separately.
     </div>
     <div class="bestTag"><span id="clearStar" class="hidden"></span> BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
     <div id="cpRow" class="cpRow hidden"><span class="eyebrow">CHECKPOINTS</span><button id="btnCp-1" class="btn cp hidden"></button><button id="btnCp-2" class="btn cp hidden"></button><button id="btnCp-3" class="btn cp hidden"></button><button id="btnCp-4" class="btn cp hidden"></button><button id="btnCp-5" class="btn cp hidden"></button></div>
-    <div id="bossWarp"><b>TEST &middot; JUMP TO BOSS</b>
+<!--TEST{-->    <div id="bossWarp"><b>TEST &middot; JUMP TO BOSS</b>
       <button class="btn small" data-warp="1">FORTRESS <small>S1</small></button>
       <button class="btn small" data-warp="2">TITAN <small>S2</small></button>
       <button class="btn small" data-warp="3">ACE <small>S3</small></button>
       <button class="btn small" data-warp="4">DREADNOUGHT <small>S4</small></button>
       <button class="btn small" data-warp="5">SERPENT <small>S5</small></button>
-    </div>
+    </div><!--}TEST-->
     <div class="keys" id="titleKeys">Mouse or Arrow keys / WASD</div>
   </div>
 </div>
