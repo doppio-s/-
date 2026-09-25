@@ -1,9 +1,9 @@
 // ================= v6: stages, waves and in-run upgrades =================
 const STAGES = [
   { name: 'OCEAN ISLES', boss: 'fortress', col: '#62f5ec' },
-  { name: 'DESERT CANYON', boss: 'titan', col: '#ffb13b' },
-  { name: 'DEEP SPACE', boss: 'ace', col: '#c9a8ff', line: 'NO GROUND, NO CEILING &middot; CLIMB, DIVE AND THREAD THE RINGS' },
-  { name: 'NIGHT FRONT', boss: 'carrier', col: '#8fb4ff' },
+  { name: 'DESERT CANYON', boss: 'titan', col: '#ffb13b', hz: 'SANDSTORMS' },
+  { name: 'DEEP SPACE', boss: 'ace', col: '#c9a8ff', hz: 'NO GROUND, NO CEILING' },
+  { name: 'NIGHT FRONT', boss: 'carrier', col: '#8fb4ff', hz: 'LIGHTNING STORM' },
 ];
 // difficulty clock (lvT) for waves 1-3 of each stage; every lap of the 4 stages adds LAP_T
 const WAVE_T = [[15, 40, 65], [90, 110, 130], [150, 170, 190], [205, 225, 245]], LAP_T = 70;
@@ -22,7 +22,7 @@ function initDirector(n, toBoss) {
 }
 function directorLabel() {
   const L = 'STAGE ' + stage;
-  if (dirPhase === 'wave') return L + ' · WAVE ' + wave + '/3 · ' + Math.max(0, waveQuota - waveKills) + ' LEFT';
+  if (dirPhase === 'wave') return L + ' · ' + WAVES[wtype].name + ' · ' + WAVES[wtype].label();
   if (dirPhase === 'boss' || dirPhase === 'bossPre') return L + ' · BOSS';
   if (dirPhase === 'intro') return L + ' · ' + STAGES[stageIdx()].name;
   if (dirPhase === 'waveClear' || dirPhase === 'rest') return L + ' · WAVE ' + wave + ' CLEAR';
@@ -33,17 +33,21 @@ function loopBuff(b) { if (lapN()) { b.hp = Math.ceil(b.hp * (1 + 0.5 * lapN()))
 function startWave() {
   wave++;
   lvT = waveT(wave - 1);
-  waveKills = 0; waveQuota = 6 + (wave - 1) * 2 + stageIdx() * 2 + lapN() * 4;
-  dirPhase = 'wave'; botSpawnCd = 0.6;
-  banner('WAVE ' + wave + ' / 3', 'SHOOT DOWN ' + waveQuota, STAGES[stageIdx()].col);
+  waveKills = 0; wv = {}; botSpawnCd = 0.6;
+  wtype = LINEUP[stageIdx()][wave - 1];
+  const goal = WAVES[wtype].start();
+  dirPhase = 'wave';
+  banner('WAVE ' + wave + '/3 · ' + WAVES[wtype].name, goal, STAGES[stageIdx()].col);
   Sound.tone(440, 0.15, 'square', 0.06); Sound.tone(660, 0.2, 'square', 0.06, null, 0.12);
 }
-function waveKill() {
+function waveKill(o) {
   if (dirPhase !== 'wave') return;
-  waveKills++;
-  if (waveKills >= waveQuota) waveCleared();
+  const w = WAVES[wtype]; if (w.kill) w.kill(o);
 }
-function waveCleared() {
+function endWave() { const w = WAVES[wtype]; if (w && w.end) w.end(); }
+function waveCleared(title = 'WAVE CLEAR', sub) {
+  if (dirPhase !== 'wave') return;
+  endWave();
   dirPhase = 'waveClear'; dirT = 1.8;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 0.8); removeBot(b); }   // stragglers bail out
   bots = [];
@@ -51,12 +55,13 @@ function waveCleared() {
   missiles = missiles.filter(m => !m.dead);
   bullets = bullets.filter(b => !b.enemy);
   player.ammo = Math.min(maxAmmo(), player.ammo + ammoBox());
-  banner('WAVE CLEAR', wave < 3 ? 'CHOOSE AN UPGRADE' : 'BOSS INCOMING', '#ffd24a');
+  banner(title, (sub ? sub + ' &middot; ' : '') + (wave < 3 ? 'CHOOSE AN UPGRADE' : 'BOSS INCOMING'), '#ffd24a');
   Sound.sfxFanfare(false); updateHud(true);
 }
 function startBossFight() {
   dirPhase = 'boss'; bossSeen = false; lvT = waveT(2);
   const kind = STAGES[stageIdx()].boss;
+  if (stage <= 4) reachCheckpoint(stage);
   if (kind === 'fortress') announceBoss();
   else if (kind === 'titan') { titanPhase = 'none'; titanWarned = false; startTitanIntro(); }
   else if (kind === 'ace') { acePhase = 'none'; aceWarned = false; startAceIntro(); }
@@ -66,6 +71,7 @@ function stageCleared() {
   dirPhase = 'stageClear'; dirT = 2.4;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 0.8); removeBot(b); }
   bots = [];
+  if (stage <= 4) clearCheckpoint(stage);
   const bonus = 1000 * stage, coins = 40 * stage;
   killPts += bonus; garage.coins += coins; saveGarage();
   banner('STAGE ' + stage + ' CLEAR', '+' + bonus + ' PTS · +' + coins + ' COINS', '#ffd24a');
@@ -74,7 +80,7 @@ function stageCleared() {
 function nextStage() {
   stage++; wave = 0; bossSeen = false; dirCine = false;
   const f = $('stageFade'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
-  applyTheme(stageIdx()); setupTurrets();
+  applyTheme(stageIdx()); resetHazards(); setupTurrets();
   Object.assign(player, { x: 0, y: ALT, z: 0, a: -Math.PI / 2, p: 0, roll: 0 }); snapCamera();
   pickups.forEach(removePickup); pickups = [];
   for (let i = 0; i < 6; i++) spawnPickup('ammo');
@@ -88,15 +94,13 @@ function updateDirector(dt) {
   if (dirPhase === 'intro') {
     if (!dirCine) {
       dirCine = true;
-      setCine('STAGE ' + stage + (lapN() ? ' &middot; LAP ' + (lapN() + 1) : ''), STAGES[stageIdx()].name, STAGES[stageIdx()].line || 'CLEAR 3 WAVES &middot; THEN DEFEAT THE BOSS');
+      const S = STAGES[stageIdx()];
+      setCine('STAGE ' + stage + (lapN() ? ' &middot; LAP ' + (lapN() + 1) : '') + (S.hz ? ' &middot; ' + S.hz : ''), S.name, lineupText(stageIdx()));
       showCine(); Sound.tone(330, 0.5, 'triangle', 0.1, 660);
     }
     if ((dirT -= dt) <= 0) { hideCine(); startWave(); }
   } else if (dirPhase === 'wave') {
-    if (botSpawnCd <= 0 && bots.length < maxBotsNow() && bots.length + waveKills < waveQuota) {
-      const b = spawnBot(); if (b) loopBuff(b);
-      botSpawnCd = rand(0.9, 1.8) / (1 + lvT / 90);
-    }
+    WAVES[wtype].update(dt);
   } else if (dirPhase === 'waveClear') {
     if ((dirT -= dt) <= 0) {
       if (wave < 3) openUpgrade('WAVE ' + wave + ' CLEAR', () => { dirPhase = 'rest'; dirT = 1.2; });
@@ -178,7 +182,6 @@ window.addEventListener('keydown', e => {
 $('bossWarp').addEventListener('click', e => {
   const b = e.target.closest('[data-warp]'); if (!b || state !== 'title') return;
   e.preventDefault(); Sound.init(); Sound.sfxClick();
-  window.__warpStage = +b.dataset.warp;
-  try { startRun(); } finally { window.__warpStage = 0; }
+  startRun(+b.dataset.warp);
 });
 $('bossWarp').addEventListener('pointerdown', e => e.stopPropagation());

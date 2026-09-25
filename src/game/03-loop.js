@@ -82,7 +82,7 @@ function updatePlayer(dt) {
   }
 }
 
-const attackLimit=()=>lvT<90?2:3;
+const attackLimit=()=>dirPhase==='wave'&&wtype==='survive'?4:lvT<90?2:3;
 function initEnemyTactics(b){
  b.phase='orbit';b.phaseTime=rand(2,5);b.passTime=0;b.attackSpent=false;
  b.approach=['front','left','right'][Math.floor(Math.random()*3)];b.orbitSide=b.approach==='left'?-1:b.approach==='right'?1:(Math.random()<.5?-1:1);
@@ -113,6 +113,7 @@ function updateBots(dt,hostile){
  if(hostile)allocateAttackSlots();
  for(const b of bots){
   if(b.dead)continue;
+  if(b.bomber&&!(b.stun>0)){updateBomber(b,dt,hostile);continue;}
   if(b.stun>0){   // EMP: drifting, rolling, no weapons
    b.stun-=dt;const bs0=botSpeed()*b.spd*.45,cp0=Math.cos(b.p);b.roll+=dt*5;
    b.x+=Math.cos(b.a)*cp0*bs0*dt;b.z+=Math.sin(b.a)*cp0*bs0*dt;
@@ -167,7 +168,7 @@ function updateBots(dt,hostile){
   }
   b.trailT-=dt;if(b.trailT<=0){const f=fwdOf(b);b.trailT=.09;addPart(b.x-f[0]*2.4*b.scale,b.y-f[1]*2.4*b.scale,b.z-f[2]*2.4*b.scale,0,.5,0,.5,.45*b.scale,0xffffff,.8);}
  }
- for(const b of bots)if(Math.hypot(b.x-player.x,b.z-player.z)>230){removeBot(b);b.dead=true;}
+ for(const b of bots)if(!keepBot(b)&&Math.hypot(b.x-player.x,b.z-player.z)>230){removeBot(b);b.dead=true;}
  bots=bots.filter(b=>!b.dead);
 }
 
@@ -181,7 +182,7 @@ function hitBot(b, dmg) {
 }
 function killBot(b) {
   if (b.dead) return;
-  b.dead = true; kills++; awardKill(b.x, b.y, b.z, b.pts); waveKill();
+  b.dead = true; kills++; awardKill(b.x, b.y, b.z, b.pts); waveKill(b);
   explode(b.x, b.y, b.z, b.heavy ? 1.6 : 1);
   if (dist3(b, player) < 60) shake = Math.max(shake, 0.16);
   removeBot(b);
@@ -196,7 +197,7 @@ function hitTurret(t, dmg) {
   t.hp -= dmg;
   for (let i = 0; i < 6; i++) addPart(t.x, t.y, t.z, rand(-6, 6), rand(0, 8), rand(-6, 6), 0.35, 0.4, i % 2 ? 0xffe24a : 0xffffff);
   if (t.hp > 0) { Sound.tone(420, 0.06, 'square', 0.05); return; }
-  t.dead = true; kills++; awardKill(t.x, t.y, t.z, t.pts); if (!t.carrier) waveKill();
+  t.dead = true; kills++; awardKill(t.x, t.y, t.z, t.pts); if (!t.carrier) waveKill(t);
   explode(t.x, t.y, t.z, 1.4); Sound.sfxBoom();
   wreckTurret(t);
   spawnPickup('ammo', t.x, t.z, clampAlt(t.y + 12));
@@ -289,6 +290,7 @@ function update(dt) {
   time += dt;
   updateSpace(dt);
   updateAsteroids(dt);
+  updateHazards(dt);
   if (state === 'playing' || state === 'dying' || state === 'over') updateMines(dt);
   seaTex.offset.x = (seaTex.offset.x + dt * 0.004) % 1;
 
@@ -479,8 +481,9 @@ function updateAimUI() {
   reticle.classList.toggle('ads', aiming());
   // markers: enemy planes, turrets in range, missiles chasing you
   const list = [];
-  for (const b of bots) if (Math.hypot(b.x - player.x, b.z - player.z) < 170) list.push({ o: b, cls: b.kind === 'ace' ? 'ace' : '', lbl: b.airframe ? (b.specialCharge > 0 ? 'CHARGING ' : b.airframe.toUpperCase() + ' ') : b.kind === 'ace' ? 'ACE ' : b.heavy ? 'HEAVY ' : '' });
-  for (const t of turrets) if (!t.dead && (t.core ? boss && boss.phase === 2 : Math.hypot(t.x - player.x, t.z - player.z) < 110)) list.push(t.core ? { o: t, cls: 'boss', lbl: 'REACTOR ' } : { o: t, cls: 'tur', lbl: t.launcher ? 'SAM ' : 'AA ', noArrow: true });
+  for (const b of bots) if (Math.hypot(b.x - player.x, b.z - player.z) < 170) list.push({ o: b, cls: b.bomber ? 'bomb' : b.kind === 'ace' ? 'ace' : '', lbl: b.bomber ? 'BOMBER ' : b.airframe ? (b.specialCharge > 0 ? 'CHARGING ' : b.airframe.toUpperCase() + ' ') : b.kind === 'ace' ? 'ACE ' : b.heavy ? 'HEAVY ' : '' });
+  for (const t of turrets) if (!t.dead && (t.core ? boss && boss.phase === 2 : t.strike || Math.hypot(t.x - player.x, t.z - player.z) < 110)) list.push(t.core ? { o: t, cls: 'boss', lbl: 'REACTOR ' } : t.strike ? { o: t, cls: 'tgt', lbl: 'TARGET ' } : { o: t, cls: 'tur', lbl: t.launcher ? 'SAM ' : 'AA ', noArrow: true });
+  list.unshift(...waveMarks());
   for (const m of missiles) if (m.enemy && m.target === player) list.push({ o: m, cls: 'msl', lbl: 'MISSILE ' });
   if (boss && !boss.dead && !(boss.cloakT > 0)) list.unshift({ o: boss, cls: 'boss', lbl: boss.titan ? 'TITAN ' : boss.ace ? (boss.ramCharge > 0 || boss.ramT > 0 ? 'RAM! ' : boss.shieldT > 0 ? 'SHIELD ' : 'ACE ') : 'BOSS ' });
   let n = 0;
@@ -583,8 +586,9 @@ function drawRadar() {
     rctx.fill();
   };
   for (const p of pickups) dot(p, p.type === 'ammo' ? '#ffe24a' : p.type === 'missile' ? '#ff9f43' : '#ff7a9c', 7);
-  for (const t of turrets) if (!t.dead) dot(t, '#ffa94d', 7, 'sq');
-  for (const b of bots) dot(b, b.kind === 'ace' ? '#ff00aa' : '#ff3b3b', b.heavy ? 11 : 9);
+  for (const t of turrets) if (!t.dead) dot(t, t.strike ? '#ff2d55' : '#ffa94d', t.strike ? 10 : 7, 'sq');
+  for (const b of bots) dot(b, b.bomber ? '#ffd24a' : b.squad ? '#ffc83d' : b.kind === 'ace' ? '#ff00aa' : '#ff3b3b', b.bomber ? 13 : b.heavy ? 11 : 9);
+  for (const m of waveMarks()) if (m.cls === 'gate') dot(m.o, Math.floor(time * 4) % 2 ? '#ffd24a' : '#ffffff', 9, 'sq');
   if (boss && !boss.dead && !(boss.cloakT > 0)) dot(boss, boss.titan ? (Math.floor(time * 6) % 2 ? '#ff2d55' : '#ffd24a') : '#ffbb58', boss.titan ? 20 : 15, 'sq');
   rctx.restore();
   rctx.save(); rctx.translate(cx, cx); rctx.rotate(-Math.PI / 2);

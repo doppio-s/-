@@ -294,6 +294,14 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #bossWarp .btn small{font-size:11px;opacity:.6}
 @media (max-height:460px){#bossWarp{width:160px;padding:8px;gap:5px}#bossWarp .btn{font-size:11px;padding:5px 8px}#bossWarp b{font-size:9px}}
 #title .titleWrap{max-width:calc(93vw - 200px)}
+.mk.gate i{border-color:#ffd24a;border-radius:50%;border-width:4px}.mk.gate b{background:#ffb13b;color:#3a2350}.mk.off.gate i{border-bottom-color:#ffd24a}
+.mk.bomb i{border-color:#ffd24a;border-width:4px}.mk.bomb b{background:#ff8c1a}.mk.off.bomb i{border-bottom-color:#ffd24a}
+.mk.tgt i{border-color:#ff2d55;border-style:dashed;border-width:4px}.mk.tgt b{background:#ff2d55}.mk.off.tgt i{border-bottom-color:#ff2d55}
+.cpRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cpRow .eyebrow{color:#ffcb81}
+.btn.cp{font-size:13px;padding:8px 12px;min-width:0;background:#142c3ee6;color:#fff;border-color:#ff5c7a;box-shadow:0 3px 0 #ff2d55}
+.btn.cp .cpDone{color:#62f5ec}
+#btnRetryCp{font-size:17px}
 #novaFlash{position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;background:radial-gradient(circle at center,rgba(201,168,255,.55),rgba(105,234,255,.25) 45%,rgba(20,10,60,0) 75%)}#novaFlash.on{animation:nova .7s ease-out}@keyframes nova{from{opacity:1}to{opacity:0}}
 .abilTag{display:inline-block;font-style:normal;font-size:10px;font-weight:800;letter-spacing:.1em;color:#1f7f75;background:#e3f0eb;border-radius:6px;padding:3px 7px;margin:-6px 0 10px}
 
@@ -497,13 +505,14 @@ included in this distribution. Its service terms apply separately.
 <div id="title" class="screen hidden">
   <div class="titleWrap">
     <div class="eyebrow">FREE-ROAM AIR COMBAT</div><h1>FLIGHT<span>.IO</span></h1><div class="edition">SKY WORKSHOP</div><div style="background:#ff3b5c;color:#fff;font-weight:800;font-size:13px;letter-spacing:.12em;padding:5px 12px;border-radius:6px">TEST BUILD · ACE DUEL (starts at the stage 3 boss)</div>
-    <div class="sub" id="titleSub">4 stages. 4 bosses. Endless skies. How far can you fly?</div>
+    <div class="sub" id="titleSub">4 stages, 12 different missions, 4 bosses. How far can you fly?</div>
     <button id="btnPlay" class="btn">PLAY</button>
     <div class="btnRow">
       <button id="btnGarage" class="btn green small2">GARAGE</button>
       <button id="btnDaily" class="btn pink small2">DAILY<span id="dailyBadge" class="badge" hidden>!</span></button>
     </div>
     <div class="bestTag">BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
+    <div id="cpRow" class="cpRow hidden"><span class="eyebrow">CHECKPOINTS</span><button id="btnCp-1" class="btn cp hidden"></button><button id="btnCp-2" class="btn cp hidden"></button><button id="btnCp-3" class="btn cp hidden"></button><button id="btnCp-4" class="btn cp hidden"></button></div>
     <div id="bossWarp"><b>TEST &middot; JUMP TO BOSS</b>
       <button class="btn small" data-warp="1">FORTRESS <small>S1</small></button>
       <button class="btn small" data-warp="2">TITAN <small>S2</small></button>
@@ -531,6 +540,7 @@ included in this distribution. Its service terms apply separately.
       <div id="titanBadge" class="hidden">OMEGA TITAN SLAIN</div>
       <div id="aceBadge" class="hidden">ACE FALCON ZERO DOWNED</div>
       <div id="carrierBadge" class="hidden">IRON LEVIATHAN SUNK</div>
+      <div id="cpNote" class="note hidden">CHECKPOINT RUN &middot; BEST NOT RECORDED</div>
       <div class="coinGain"><span class="coin"></span>+<span id="finalCoins">0</span> coins &middot; total <span id="finalCoinTotal">0</span></div>
       <div class="row">
         <div class="stat"><span class="lbl">TIME</span><span class="val" id="finalTime">0s</span></div>
@@ -541,6 +551,7 @@ included in this distribution. Its service terms apply separately.
     </div>
     <div class="col">
       <button id="btnRevive" class="btn pink"><span class="adTag">AD</span>CONTINUE</button>
+      <button id="btnRetryCp" class="btn green hidden"></button>
       <button id="btnAgain" class="btn">PLAY AGAIN</button>
       <button id="btnOverGarage" class="btn small">GARAGE</button>
     </div>
@@ -1522,7 +1533,8 @@ function clearWorld() {
   bullets = []; parts = []; decoys = [];
   if (boss) scene.remove(boss.mesh);
   turrets = turrets.filter(t => { if (t.carrier) { scene.remove(t.mesh); return false; } return true; });
-  clearMines(); resetRun(); dirPhase = 'none';
+  if (dirPhase === 'wave') endWave();
+  clearMines(); resetRun(); resetHazards(); dirPhase = 'none'; wv = {};
   boss = null; bossWarnT = 0; combo = 0; comboT = 0;
   $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('titan', 'ace', 'shield'); $('bossWarn').classList.add('hidden'); $('combo').classList.add('hidden');
   hideCine(); slowT = 0; slowScale = 1;
@@ -1543,6 +1555,7 @@ function toTitle() {
   $('titleCoins').textContent = garage.coins;
   $('dailyBadge').hidden = !canClaimDaily();
   setHud(false); $('hint').classList.add('hidden');
+  renderCheckpoints();
   showOnly('title');
 }
 function openDaily() {
@@ -1562,7 +1575,8 @@ function openGarage() {
   showOnly('garage');
 }
 
-function startRun() {
+function startRun(cp) {
+  cp = +cp || window.__warpStage || 0;   // start at stage cp's boss (checkpoint / test warp)
   clearWorld(); clearInput(); resetSpecial();
   Object.assign(player, { x: 0, y: ALT, z: 0, a: -Math.PI / 2, p: 0, roll: 0, hp: maxHp(), ammo: startAmmo(), missiles: startMissiles(), flares: startFlares(),
     invul: 0, fireCd: 0, mslCd: 0, flareCd: 0, alive: true });
@@ -1572,7 +1586,9 @@ function startRun() {
   titanPhase = 'none'; titanT = 0; titanWarned = false; titanSlain = false; supplyT = 14;
   acePhase = 'none'; aceT = 0; aceWarned = false; aceSlain = false;
   carrierPhase = 'none'; carrierT = 0; carrierWarned = false; carrierSunk = false;
-  initDirector(window.__warpStage || 1, !!window.__warpStage);
+  runCheckpoint = CP_BOSS[cp] ? cp : 0; runReached = 0;
+  initDirector(runCheckpoint || 1, !!runCheckpoint);
+  if (runCheckpoint) grantCheckpointUpgrades(runCheckpoint);
   for (let i = 0; i < 7; i++) spawnPickup('ammo');
   spawnPickup('missile');
   setupTurrets();
@@ -1632,7 +1648,7 @@ function crash() {
 function showOver() {
   state = 'over';
   setHud(false);
-  const sc = scoreNow(), isNew = sc > best;
+  const sc = scoreNow(), isNew = !runCheckpoint && sc > best;   // checkpoint runs don't count for BEST
   if (isNew) { const had = best > 0; best = sc; Store.set('best', best); if (had) CG.happytime(); }
   // coins: the whole run earns floor(score / 50); only the part not paid out yet is added (continue-safe)
   const earned = runCoins() - runCoinsGiven;
@@ -1650,12 +1666,16 @@ function showOver() {
   $('aceBadge').classList.toggle('hidden', !aceSlain);
   $('carrierBadge').classList.toggle('hidden', !carrierSunk);
   $('btnRevive').classList.add('hidden');
+  $('cpNote').classList.toggle('hidden', !runCheckpoint);
+  const retry = runReached || runCheckpoint;
+  $('btnRetryCp').classList.toggle('hidden', !retry);
+  if (retry) $('btnRetryCp').innerHTML = '&#8635; RETRY S' + retry + ' ' + CP_BOSS[retry];
   $('btnRevive').innerHTML = '<span class="adTag">AD</span>CONTINUE';
   setOverButtons(true);
   showOnly('over');
   Sound.sfxOver();
 }
-function setOverButtons(on) { for (const id of ['btnRevive', 'btnAgain', 'btnOverGarage']) $(id).disabled = !on; }
+function setOverButtons(on) { for (const id of ['btnRevive', 'btnAgain', 'btnOverGarage', 'btnRetryCp']) $(id).disabled = !on; }
 
 function revive() {
   revived = true;
@@ -1839,7 +1859,7 @@ function updatePlayer(dt) {
   }
 }
 
-const attackLimit=()=>lvT<90?2:3;
+const attackLimit=()=>dirPhase==='wave'&&wtype==='survive'?4:lvT<90?2:3;
 function initEnemyTactics(b){
  b.phase='orbit';b.phaseTime=rand(2,5);b.passTime=0;b.attackSpent=false;
  b.approach=['front','left','right'][Math.floor(Math.random()*3)];b.orbitSide=b.approach==='left'?-1:b.approach==='right'?1:(Math.random()<.5?-1:1);
@@ -1870,6 +1890,7 @@ function updateBots(dt,hostile){
  if(hostile)allocateAttackSlots();
  for(const b of bots){
   if(b.dead)continue;
+  if(b.bomber&&!(b.stun>0)){updateBomber(b,dt,hostile);continue;}
   if(b.stun>0){   // EMP: drifting, rolling, no weapons
    b.stun-=dt;const bs0=botSpeed()*b.spd*.45,cp0=Math.cos(b.p);b.roll+=dt*5;
    b.x+=Math.cos(b.a)*cp0*bs0*dt;b.z+=Math.sin(b.a)*cp0*bs0*dt;
@@ -1924,7 +1945,7 @@ function updateBots(dt,hostile){
   }
   b.trailT-=dt;if(b.trailT<=0){const f=fwdOf(b);b.trailT=.09;addPart(b.x-f[0]*2.4*b.scale,b.y-f[1]*2.4*b.scale,b.z-f[2]*2.4*b.scale,0,.5,0,.5,.45*b.scale,0xffffff,.8);}
  }
- for(const b of bots)if(Math.hypot(b.x-player.x,b.z-player.z)>230){removeBot(b);b.dead=true;}
+ for(const b of bots)if(!keepBot(b)&&Math.hypot(b.x-player.x,b.z-player.z)>230){removeBot(b);b.dead=true;}
  bots=bots.filter(b=>!b.dead);
 }
 
@@ -1938,7 +1959,7 @@ function hitBot(b, dmg) {
 }
 function killBot(b) {
   if (b.dead) return;
-  b.dead = true; kills++; awardKill(b.x, b.y, b.z, b.pts); waveKill();
+  b.dead = true; kills++; awardKill(b.x, b.y, b.z, b.pts); waveKill(b);
   explode(b.x, b.y, b.z, b.heavy ? 1.6 : 1);
   if (dist3(b, player) < 60) shake = Math.max(shake, 0.16);
   removeBot(b);
@@ -1953,7 +1974,7 @@ function hitTurret(t, dmg) {
   t.hp -= dmg;
   for (let i = 0; i < 6; i++) addPart(t.x, t.y, t.z, rand(-6, 6), rand(0, 8), rand(-6, 6), 0.35, 0.4, i % 2 ? 0xffe24a : 0xffffff);
   if (t.hp > 0) { Sound.tone(420, 0.06, 'square', 0.05); return; }
-  t.dead = true; kills++; awardKill(t.x, t.y, t.z, t.pts); if (!t.carrier) waveKill();
+  t.dead = true; kills++; awardKill(t.x, t.y, t.z, t.pts); if (!t.carrier) waveKill(t);
   explode(t.x, t.y, t.z, 1.4); Sound.sfxBoom();
   wreckTurret(t);
   spawnPickup('ammo', t.x, t.z, clampAlt(t.y + 12));
@@ -2046,6 +2067,7 @@ function update(dt) {
   time += dt;
   updateSpace(dt);
   updateAsteroids(dt);
+  updateHazards(dt);
   if (state === 'playing' || state === 'dying' || state === 'over') updateMines(dt);
   seaTex.offset.x = (seaTex.offset.x + dt * 0.004) % 1;
 
@@ -2236,8 +2258,9 @@ function updateAimUI() {
   reticle.classList.toggle('ads', aiming());
   // markers: enemy planes, turrets in range, missiles chasing you
   const list = [];
-  for (const b of bots) if (Math.hypot(b.x - player.x, b.z - player.z) < 170) list.push({ o: b, cls: b.kind === 'ace' ? 'ace' : '', lbl: b.airframe ? (b.specialCharge > 0 ? 'CHARGING ' : b.airframe.toUpperCase() + ' ') : b.kind === 'ace' ? 'ACE ' : b.heavy ? 'HEAVY ' : '' });
-  for (const t of turrets) if (!t.dead && (t.core ? boss && boss.phase === 2 : Math.hypot(t.x - player.x, t.z - player.z) < 110)) list.push(t.core ? { o: t, cls: 'boss', lbl: 'REACTOR ' } : { o: t, cls: 'tur', lbl: t.launcher ? 'SAM ' : 'AA ', noArrow: true });
+  for (const b of bots) if (Math.hypot(b.x - player.x, b.z - player.z) < 170) list.push({ o: b, cls: b.bomber ? 'bomb' : b.kind === 'ace' ? 'ace' : '', lbl: b.bomber ? 'BOMBER ' : b.airframe ? (b.specialCharge > 0 ? 'CHARGING ' : b.airframe.toUpperCase() + ' ') : b.kind === 'ace' ? 'ACE ' : b.heavy ? 'HEAVY ' : '' });
+  for (const t of turrets) if (!t.dead && (t.core ? boss && boss.phase === 2 : t.strike || Math.hypot(t.x - player.x, t.z - player.z) < 110)) list.push(t.core ? { o: t, cls: 'boss', lbl: 'REACTOR ' } : t.strike ? { o: t, cls: 'tgt', lbl: 'TARGET ' } : { o: t, cls: 'tur', lbl: t.launcher ? 'SAM ' : 'AA ', noArrow: true });
+  list.unshift(...waveMarks());
   for (const m of missiles) if (m.enemy && m.target === player) list.push({ o: m, cls: 'msl', lbl: 'MISSILE ' });
   if (boss && !boss.dead && !(boss.cloakT > 0)) list.unshift({ o: boss, cls: 'boss', lbl: boss.titan ? 'TITAN ' : boss.ace ? (boss.ramCharge > 0 || boss.ramT > 0 ? 'RAM! ' : boss.shieldT > 0 ? 'SHIELD ' : 'ACE ') : 'BOSS ' });
   let n = 0;
@@ -2340,8 +2363,9 @@ function drawRadar() {
     rctx.fill();
   };
   for (const p of pickups) dot(p, p.type === 'ammo' ? '#ffe24a' : p.type === 'missile' ? '#ff9f43' : '#ff7a9c', 7);
-  for (const t of turrets) if (!t.dead) dot(t, '#ffa94d', 7, 'sq');
-  for (const b of bots) dot(b, b.kind === 'ace' ? '#ff00aa' : '#ff3b3b', b.heavy ? 11 : 9);
+  for (const t of turrets) if (!t.dead) dot(t, t.strike ? '#ff2d55' : '#ffa94d', t.strike ? 10 : 7, 'sq');
+  for (const b of bots) dot(b, b.bomber ? '#ffd24a' : b.squad ? '#ffc83d' : b.kind === 'ace' ? '#ff00aa' : '#ff3b3b', b.bomber ? 13 : b.heavy ? 11 : 9);
+  for (const m of waveMarks()) if (m.cls === 'gate') dot(m.o, Math.floor(time * 4) % 2 ? '#ffd24a' : '#ffffff', 9, 'sq');
   if (boss && !boss.dead && !(boss.cloakT > 0)) dot(boss, boss.titan ? (Math.floor(time * 6) % 2 ? '#ff2d55' : '#ffd24a') : '#ffbb58', boss.titan ? 20 : 15, 'sq');
   rctx.restore();
   rctx.save(); rctx.translate(cx, cx); rctx.rotate(-Math.PI / 2);
@@ -4168,13 +4192,13 @@ const THEMES = [
     sand: 0xffe1a1, hills: [0x6fd36a, 0x58c04f, 0x8ae26b, 0x4fb862], trunk: 0xa8663a, leaves: [0x6fd36a, 0x58c04f, 0x8ae26b, 0x4fb862] },
   { sky: ['#d9604e', '#f3a863', '#ffe0a8'], fog: 0xf5c992, fogN: 60, fogF: 280, sea: '#dcae6c', seaLine: '#f0cd92',
     hemi: [0xffe0b8, 0x9a6a45, 1.3], sun: [0xffc27a, 2.5], cloud: [0xffe6cc, 0x5a3a2a], high: [0xffd9b8, 0x6a4030],
-    sand: 0xd39a5e, hills: [0xc0643a, 0xa9502e, 0xd4804a, 0xb85c36], trunk: 0x6b8f3a, leaves: [0x6f9a3a, 0x7fae44, 0x5f8a30, 0x86b04c] },
+    sand: 0xd39a5e, hills: [0xc0643a, 0xa9502e, 0xd4804a, 0xb85c36], trunk: 0x6b8f3a, leaves: [0x6f9a3a, 0x7fae44, 0x5f8a30, 0x86b04c], sandstorm: true },
   { sky: ['#02030c', '#070a26', '#141440'], fog: 0x0a0c26, fogN: 140, fogF: 560, sea: '#0a0c26', seaLine: '#141440',
     hemi: [0xc0b8ff, 0x302860, 1.2], sun: [0xfff2e0, 2.3], cloud: [0xeae6ff, 0x3a3060], high: [0xffffff, 0x302850],
     stars: true, asteroids: true, space: true, noIslands: true, noTurrets: true, noHigh: true },
   { sky: ['#030816', '#0b1a3c', '#26396a'], fog: 0x18264a, fogN: 60, fogF: 280, sea: '#1a3868', seaLine: '#2f5a92',
     hemi: [0x8fa8ff, 0x0a1428, 0.75], sun: [0xbcd0ff, 1.15], cloud: [0x6a7498, 0x101828], high: [0x55607a, 0x0a1020],
-    sand: 0x5f6474, hills: [0x2c4a3a, 0x264236, 0x345646, 0x2a4838], trunk: 0x3a2a20, leaves: [0x21402f, 0x2a4a36, 0x1c3a2a, 0x274634], stars: true },
+    sand: 0x5f6474, hills: [0x2c4a3a, 0x264236, 0x345646, 0x2a4838], trunk: 0x3a2a20, leaves: [0x21402f, 0x2a4a36, 0x1c3a2a, 0x274634], stars: true, lightning: true },
 ];
 let themeNow = -1;
 // star dome for the high-altitude and night stages
@@ -4423,9 +4447,9 @@ function updateMines(dt) {
 // ================= v6: stages, waves and in-run upgrades =================
 const STAGES = [
   { name: 'OCEAN ISLES', boss: 'fortress', col: '#62f5ec' },
-  { name: 'DESERT CANYON', boss: 'titan', col: '#ffb13b' },
-  { name: 'DEEP SPACE', boss: 'ace', col: '#c9a8ff', line: 'NO GROUND, NO CEILING &middot; CLIMB, DIVE AND THREAD THE RINGS' },
-  { name: 'NIGHT FRONT', boss: 'carrier', col: '#8fb4ff' },
+  { name: 'DESERT CANYON', boss: 'titan', col: '#ffb13b', hz: 'SANDSTORMS' },
+  { name: 'DEEP SPACE', boss: 'ace', col: '#c9a8ff', hz: 'NO GROUND, NO CEILING' },
+  { name: 'NIGHT FRONT', boss: 'carrier', col: '#8fb4ff', hz: 'LIGHTNING STORM' },
 ];
 // difficulty clock (lvT) for waves 1-3 of each stage; every lap of the 4 stages adds LAP_T
 const WAVE_T = [[15, 40, 65], [90, 110, 130], [150, 170, 190], [205, 225, 245]], LAP_T = 70;
@@ -4444,7 +4468,7 @@ function initDirector(n, toBoss) {
 }
 function directorLabel() {
   const L = 'STAGE ' + stage;
-  if (dirPhase === 'wave') return L + ' · WAVE ' + wave + '/3 · ' + Math.max(0, waveQuota - waveKills) + ' LEFT';
+  if (dirPhase === 'wave') return L + ' · ' + WAVES[wtype].name + ' · ' + WAVES[wtype].label();
   if (dirPhase === 'boss' || dirPhase === 'bossPre') return L + ' · BOSS';
   if (dirPhase === 'intro') return L + ' · ' + STAGES[stageIdx()].name;
   if (dirPhase === 'waveClear' || dirPhase === 'rest') return L + ' · WAVE ' + wave + ' CLEAR';
@@ -4455,17 +4479,21 @@ function loopBuff(b) { if (lapN()) { b.hp = Math.ceil(b.hp * (1 + 0.5 * lapN()))
 function startWave() {
   wave++;
   lvT = waveT(wave - 1);
-  waveKills = 0; waveQuota = 6 + (wave - 1) * 2 + stageIdx() * 2 + lapN() * 4;
-  dirPhase = 'wave'; botSpawnCd = 0.6;
-  banner('WAVE ' + wave + ' / 3', 'SHOOT DOWN ' + waveQuota, STAGES[stageIdx()].col);
+  waveKills = 0; wv = {}; botSpawnCd = 0.6;
+  wtype = LINEUP[stageIdx()][wave - 1];
+  const goal = WAVES[wtype].start();
+  dirPhase = 'wave';
+  banner('WAVE ' + wave + '/3 · ' + WAVES[wtype].name, goal, STAGES[stageIdx()].col);
   Sound.tone(440, 0.15, 'square', 0.06); Sound.tone(660, 0.2, 'square', 0.06, null, 0.12);
 }
-function waveKill() {
+function waveKill(o) {
   if (dirPhase !== 'wave') return;
-  waveKills++;
-  if (waveKills >= waveQuota) waveCleared();
+  const w = WAVES[wtype]; if (w.kill) w.kill(o);
 }
-function waveCleared() {
+function endWave() { const w = WAVES[wtype]; if (w && w.end) w.end(); }
+function waveCleared(title = 'WAVE CLEAR', sub) {
+  if (dirPhase !== 'wave') return;
+  endWave();
   dirPhase = 'waveClear'; dirT = 1.8;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 0.8); removeBot(b); }   // stragglers bail out
   bots = [];
@@ -4473,12 +4501,13 @@ function waveCleared() {
   missiles = missiles.filter(m => !m.dead);
   bullets = bullets.filter(b => !b.enemy);
   player.ammo = Math.min(maxAmmo(), player.ammo + ammoBox());
-  banner('WAVE CLEAR', wave < 3 ? 'CHOOSE AN UPGRADE' : 'BOSS INCOMING', '#ffd24a');
+  banner(title, (sub ? sub + ' &middot; ' : '') + (wave < 3 ? 'CHOOSE AN UPGRADE' : 'BOSS INCOMING'), '#ffd24a');
   Sound.sfxFanfare(false); updateHud(true);
 }
 function startBossFight() {
   dirPhase = 'boss'; bossSeen = false; lvT = waveT(2);
   const kind = STAGES[stageIdx()].boss;
+  if (stage <= 4) reachCheckpoint(stage);
   if (kind === 'fortress') announceBoss();
   else if (kind === 'titan') { titanPhase = 'none'; titanWarned = false; startTitanIntro(); }
   else if (kind === 'ace') { acePhase = 'none'; aceWarned = false; startAceIntro(); }
@@ -4488,6 +4517,7 @@ function stageCleared() {
   dirPhase = 'stageClear'; dirT = 2.4;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 0.8); removeBot(b); }
   bots = [];
+  if (stage <= 4) clearCheckpoint(stage);
   const bonus = 1000 * stage, coins = 40 * stage;
   killPts += bonus; garage.coins += coins; saveGarage();
   banner('STAGE ' + stage + ' CLEAR', '+' + bonus + ' PTS · +' + coins + ' COINS', '#ffd24a');
@@ -4496,7 +4526,7 @@ function stageCleared() {
 function nextStage() {
   stage++; wave = 0; bossSeen = false; dirCine = false;
   const f = $('stageFade'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
-  applyTheme(stageIdx()); setupTurrets();
+  applyTheme(stageIdx()); resetHazards(); setupTurrets();
   Object.assign(player, { x: 0, y: ALT, z: 0, a: -Math.PI / 2, p: 0, roll: 0 }); snapCamera();
   pickups.forEach(removePickup); pickups = [];
   for (let i = 0; i < 6; i++) spawnPickup('ammo');
@@ -4510,15 +4540,13 @@ function updateDirector(dt) {
   if (dirPhase === 'intro') {
     if (!dirCine) {
       dirCine = true;
-      setCine('STAGE ' + stage + (lapN() ? ' &middot; LAP ' + (lapN() + 1) : ''), STAGES[stageIdx()].name, STAGES[stageIdx()].line || 'CLEAR 3 WAVES &middot; THEN DEFEAT THE BOSS');
+      const S = STAGES[stageIdx()];
+      setCine('STAGE ' + stage + (lapN() ? ' &middot; LAP ' + (lapN() + 1) : '') + (S.hz ? ' &middot; ' + S.hz : ''), S.name, lineupText(stageIdx()));
       showCine(); Sound.tone(330, 0.5, 'triangle', 0.1, 660);
     }
     if ((dirT -= dt) <= 0) { hideCine(); startWave(); }
   } else if (dirPhase === 'wave') {
-    if (botSpawnCd <= 0 && bots.length < maxBotsNow() && bots.length + waveKills < waveQuota) {
-      const b = spawnBot(); if (b) loopBuff(b);
-      botSpawnCd = rand(0.9, 1.8) / (1 + lvT / 90);
-    }
+    WAVES[wtype].update(dt);
   } else if (dirPhase === 'waveClear') {
     if ((dirT -= dt) <= 0) {
       if (wave < 3) openUpgrade('WAVE ' + wave + ' CLEAR', () => { dirPhase = 'rest'; dirT = 1.2; });
@@ -4600,10 +4628,402 @@ window.addEventListener('keydown', e => {
 $('bossWarp').addEventListener('click', e => {
   const b = e.target.closest('[data-warp]'); if (!b || state !== 'title') return;
   e.preventDefault(); Sound.init(); Sound.sfxClick();
-  window.__warpStage = +b.dataset.warp;
-  try { startRun(); } finally { window.__warpStage = 0; }
+  startRun(+b.dataset.warp);
 });
 $('bossWarp').addEventListener('pointerdown', e => e.stopPropagation());
+// ================= v7: wave variety, stage hazards, boss checkpoints =================
+// Every stage runs its own 3-wave lineup, so no two stages play the same:
+//   DOGFIGHT  shoot down the quota          GATE RUN  thread the gates before the clock runs out
+//   AA STRIKE destroy the marked AA sites    BOMBERS   stop the bomber formation before it crosses the map
+//   HOLD OUT  survive the swarm              ACE SQUADRON  three elite pilots, all at once
+const LINEUP = [
+  ['dogfight', 'gates', 'strike'],     // OCEAN ISLES
+  ['bombers', 'dogfight', 'survive'],  // DESERT CANYON (sandstorms)
+  ['gates', 'bombers', 'squadron'],    // DEEP SPACE
+  ['strike', 'bombers', 'survive'],    // NIGHT FRONT (lightning)
+];
+let wtype = 'dogfight', wv = {};
+const lapK = () => 1 + 0.5 * lapN();
+const waveName = t => WAVES[t].name;
+const lineupText = i => LINEUP[i].map(waveName).join(' &middot; ') + ' &middot; BOSS';
+function waveBonus(pts, sub) {
+  pts = Math.round(pts * lapK()); killPts += pts;
+  popup(player.x, player.y + 4, player.z, sub ? sub + ' +' + pts : '+' + pts, true, true);
+}
+// bots in a wave that must be chased down wherever they are
+const keepBot = b => b.bomber || b.squad;
+
+const WAVES = {
+  dogfight: {
+    name: 'DOGFIGHT',
+    start() { waveQuota = 6 + (wave - 1) * 2 + stageIdx() * 2 + lapN() * 4; return 'SHOOT DOWN ' + waveQuota; },
+    update() {
+      if (botSpawnCd <= 0 && bots.length < maxBotsNow() && bots.length + waveKills < waveQuota) {
+        const b = spawnBot(); if (b) loopBuff(b);
+        botSpawnCd = rand(0.9, 1.8) / (1 + lvT / 90);
+      }
+    },
+    kill() { if (++waveKills >= waveQuota) waveCleared(); },
+    label() { return Math.max(0, waveQuota - waveKills) + ' LEFT'; },
+  },
+
+  // ---- GATE RUN: a chain of rings; each one resets a short clock ----
+  gates: {
+    name: 'GATE RUN',
+    start() {
+      const n = 6 + lapN(), list = [];
+      let px = player.x, py = player.y, pz = player.z, h = player.a;
+      for (let k = 0; k < n; k++) {
+        let x, y, z, ok = false;
+        for (let t = 0; t < 14 && !ok; t++) {
+          const dh = h + rand(-0.75, 0.75), d = rand(80, 100);
+          x = px + Math.cos(dh) * d; z = pz + Math.sin(dh) * d;
+          y = isSpace() ? clamp(py + rand(-35, 35), ALT_MIN + 25, ALT_MAX - 25) : clamp(py + rand(-14, 14), 20, ALT_MAX - 14);
+          if (Math.abs(x) > MAP - 40 || Math.abs(z) > MAP - 40) { h = Math.atan2(-pz, -px); continue; }
+          ok = !isSpace() || TORI.every(T => torusDist(T, { x, y, z }) > 16);
+          if (ok) h = dh;
+        }
+        const nx = x - px, ny = y - py, nz = z - pz, nl = Math.hypot(nx, ny, nz) || 1;
+        const g = { x, y, z, n: [nx / nl, ny / nl, nz / nl], R: 8.5, scale: 3, prev: 0, mesh: makeGate() };
+        g.mesh.position.set(x, y, z); g.mesh.lookAt(x + g.n[0], y + g.n[1], z + g.n[2]); g.mesh.visible = false; scene.add(g.mesh);
+        list.push(g); px = x; py = y; pz = z;
+      }
+      if (isSpace()) for (const r of ROCKS) if (list.some(g => dist3(g, r) < r.r + 16)) { placeRock(r, true); r.mesh.position.set(r.x, r.y, r.z); }
+      wv = { list, i: 0, got: 0, streak: 0, t: 0 };
+      armGate();
+      return 'FLY THROUGH ' + n + ' GATES';
+    },
+    update(dt) {
+      if (botSpawnCd <= 0 && bots.length < Math.min(2, maxBotsNow())) { const b = spawnBot(); if (b) loopBuff(b); botSpawnCd = rand(3, 5); }
+      const g = wv.list[wv.i]; if (!g) return;
+      wv.t -= dt;
+      const rx = player.x - g.x, ry = player.y - g.y, rz = player.z - g.z;
+      const s = rx * g.n[0] + ry * g.n[1] + rz * g.n[2];
+      const radial = Math.sqrt(Math.max(0, rx * rx + ry * ry + rz * rz - s * s));
+      if (g.prev < 0 && s >= 0 && radial < g.R + 1.2) passGate(g);
+      else if (wv.t <= 0) missGate(g);
+      else g.prev = s;
+      if (wv.t < 3 && wv.t + dt >= Math.ceil(wv.t) && wv.t > 0) Sound.tone(880, 0.06, 'square', 0.05);
+      for (const [k, q] of wv.list.entries()) if (q.mesh.visible) {
+        const cur = k === wv.i;
+        q.mesh.scale.setScalar(cur ? 1 + Math.sin(time * 6) * 0.05 : 0.9);
+        q.mesh.userData.ring.material.color.set(cur ? (wv.t < 3 && Math.floor(time * 6) % 2 ? 0xff5c7a : 0xffd24a) : 0x62f5ec);
+        q.mesh.userData.disc.material.opacity = cur ? 0.16 : 0.05;
+        q.mesh.rotation.z += dt * (cur ? 1.2 : 0.4);
+      }
+    },
+    end() { for (const g of wv.list || []) scene.remove(g.mesh); },
+    label() { return 'GATE ' + Math.min(wv.i + 1, wv.list.length) + '/' + wv.list.length + ' · ' + Math.max(0, Math.ceil(wv.t)) + 's'; },
+    marks() { const g = wv.list[wv.i]; return g ? [{ o: g, cls: 'gate', lbl: 'GATE ' }] : []; },
+  },
+
+  // ---- AA STRIKE: marked flak sites on the islands; fighters defend them ----
+  strike: {
+    name: 'AA STRIKE',
+    start() {
+      const n = 4 + (stageIdx() >= 3 ? 1 : 0) + lapN();
+      const spots = ISLANDS.filter(o => o.r >= 8 && o.tx !== undefined && Math.abs(o.tx) < MAP - 15 && Math.abs(o.tz) < MAP - 15)
+        .map(o => ({ o, d: Math.hypot(o.tx - player.x, o.tz - player.z) })).filter(s => s.d > 55).sort((a, b) => a.d - b.d).slice(0, n + 4);
+      for (let i = spots.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [spots[i], spots[j]] = [spots[j], spots[i]]; }
+      const list = [];
+      for (const { o } of spots.slice(0, n)) {
+        let t = turrets.find(t => !t.dead && !t.carrier && Math.hypot(t.x - o.tx, t.z - o.tz) < 3);
+        if (!t) { const mesh = makeTurret(); mesh.position.set(o.tx, o.ty - 0.4, o.tz); scene.add(mesh); t = { x: o.tx, y: o.ty + 2, z: o.tz, cd: rand(1, 3), dead: false, mesh, scale: 1.2 }; turrets.push(t); }
+        Object.assign(t, { hp: Math.ceil(8 * lapK()), pts: 350, strike: true });
+        const beam = new THREE.Mesh(G.cyl, beaconMat); beam.scale.set(0.35, 40, 0.35); beam.position.y = 20; t.mesh.add(beam); t.beam = beam;
+        list.push(t);
+      }
+      wv = { list };
+      if (!list.length) { wtype = 'dogfight'; return WAVES.dogfight.start(); }   // no islands here
+      return 'DESTROY ' + list.length + ' AA SITES';
+    },
+    update() {
+      if (botSpawnCd <= 0 && bots.length < Math.min(3, maxBotsNow())) { const b = spawnBot(); if (b) loopBuff(b); botSpawnCd = rand(2.2, 3.8); }
+      beaconMat.opacity = 0.28 + Math.sin(time * 5) * 0.12;
+    },
+    kill(o) {
+      if (!o || !o.strike) return;
+      if (o.beam) { o.mesh.remove(o.beam); o.beam = null; }
+      const left = wv.list.filter(t => !t.dead).length;
+      popup(o.x, o.y + 5, o.z, left ? 'AA SITE DOWN · ' + left + ' LEFT' : 'ALL AA SITES DOWN', true);
+      if (!left) { waveBonus(1200, 'STRIKE COMPLETE'); waveCleared('STRIKE COMPLETE'); }
+    },
+    end() { for (const t of wv.list || []) { t.strike = false; if (t.beam) { t.mesh.remove(t.beam); t.beam = null; } } },
+    label() { return 'AA SITES ' + wv.list.filter(t => !t.dead).length + ' LEFT'; },
+  },
+
+  // ---- BOMBERS: a formation crosses the map; every one that gets through costs a heart ----
+  bombers: {
+    name: 'BOMBERS',
+    start() {
+      const n = 3 + (stageIdx() >= 2 ? 1 : 0) + lapN(), E = MAP - 30;
+      let bestK = null;
+      for (let k = 0; k < 10; k++) {   // a flight line that passes close to you and is long from both ends
+        const th = rand(0, Math.PI * 2), dx = Math.cos(th), dz = Math.sin(th);
+        const ox = player.x + rand(-25, 25), oz = player.z + rand(-25, 25);
+        const lim = (p, d) => d > 0 ? [(-E - p) / d, (E - p) / d] : d < 0 ? [(E - p) / d, (-E - p) / d] : [-1e9, 1e9];
+        const [a0, a1] = lim(ox, dx), [b0, b1] = lim(oz, dz), t0 = Math.max(a0, b0), t1 = Math.min(a1, b1);
+        const score = Math.min(-t0, t1);
+        if (!bestK || score > bestK.score) bestK = { score, dx, dz, sx: ox + dx * t0, sz: oz + dz * t0, len: t1 - t0 };
+      }
+      const { dx, dz, sx, sz, len } = bestK, px = -dz, pz = dx;
+      const cy = isSpace() ? clamp(player.y + rand(-25, 25), ALT_MIN + 30, ALT_MAX - 30) : rand(34, 48);
+      const list = [];
+      for (let i = 0; i < n; i++) {
+        const side = i === 0 ? 0 : (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 15, back = Math.ceil(i / 2) * 14;
+        const x = sx - dx * back + px * side, z = sz - dz * back + pz * side;
+        const b = spawnBot('heavy', { x, y: cy, z }); if (!b) continue;
+        Object.assign(b, { x, z, y: cy, a: Math.atan2(dz, dx), bomber: true, hp: Math.ceil(12 * lapK()), pts: 500, scale: 2.2, spd: 0.55, gunCd: rand(1, 2),
+          sx: sx + px * side, sz: sz + pz * side, dx, dz, len, cy, trailT: 0 });
+        scene.remove(b.mesh); b.mesh = makePlane(0x3b3f4f, 0xffb13b, 'brick'); b.mesh.scale.setScalar(1.45 * 2.2); scene.add(b.mesh); orientPlane(b, 0);
+        list.push(b);
+      }
+      for (let i = 0; i < 2; i++) { const e = spawnBot('normal', list[0]); if (e) loopBuff(e); }
+      wv = { list, esc: 0, n: list.length };
+      Sound.sfxSiren();
+      return 'STOP ' + list.length + ' BOMBERS BEFORE THEY CROSS';
+    },
+    update() {
+      if (botSpawnCd <= 0 && bots.filter(b => !b.bomber).length < Math.min(2, maxBotsNow())) { const b = spawnBot(); if (b) loopBuff(b); botSpawnCd = rand(3, 5); }
+      for (const b of wv.list) {
+        if (b.dead) continue;
+        if ((b.x - b.sx) * b.dx + (b.z - b.sz) * b.dz >= b.len) {   // made it across
+          b.dead = true; b.escaped = true; removeBot(b); wv.esc++;
+          banner('BOMBER GOT THROUGH', player.hp > 1 ? '-1 ♥' : 'LAST HEART SPARED', '#ff5c7a');
+          if (player.hp > 1) { player.hp--; const fl = $('dmgFlash'); fl.classList.remove('hit'); void fl.offsetWidth; fl.classList.add('hit'); Sound.sfxHit(); shake = 0.3; updateHud(true); }
+        }
+      }
+      bots = bots.filter(b => !b.dead);
+      if (wv.list.every(b => b.dead)) {
+        if (!wv.esc) waveBonus(2000, 'PERFECT INTERCEPT');
+        waveCleared(wv.esc ? 'INTERCEPT OVER' : 'PERFECT INTERCEPT', (wv.n - wv.esc) + '/' + wv.n + ' BOMBERS DOWN');
+      }
+    },
+    kill(o) {
+      if (!o || !o.bomber) return;
+      hitStop(0.18, 0.25); shockwave(o.x, o.y, o.z, 16, 0xffb13b, 0.5);
+      const left = wv.list.filter(b => !b.dead).length;
+      if (left) popup(o.x, o.y + 5, o.z, 'BOMBER DOWN · ' + left + ' LEFT', true);
+    },
+    label() { const down = wv.list.filter(b => b.dead && !b.escaped).length; return 'BOMBERS ' + down + '/' + wv.n + ' DOWN' + (wv.esc ? ' · ' + wv.esc + ' THROUGH' : ''); },
+    marks() { return wv.list.filter(b => !b.dead && Math.hypot(b.x - player.x, b.z - player.z) >= 170).map(b => ({ o: b, cls: 'bomb', lbl: 'BOMBER ' })); },
+  },
+
+  // ---- HOLD OUT: a swarm with more attackers at once; just stay alive ----
+  survive: {
+    name: 'HOLD OUT',
+    start() { wv = { t: 30 + (stageIdx() >= 3 ? 5 : 0), kills: 0 }; wv.max = wv.t; botSpawnCd = 0.3; return 'SURVIVE ' + wv.t + ' SECONDS'; },
+    update(dt) {
+      if (botSpawnCd <= 0 && bots.length < Math.min(10, maxBotsNow() + 3)) { const b = spawnBot(); if (b) loopBuff(b); botSpawnCd = rand(0.4, 0.9); }
+      const before = wv.t; wv.t -= dt;
+      if (wv.t < 5 && Math.ceil(wv.t) !== Math.ceil(before)) Sound.tone(660, 0.08, 'square', 0.06);
+      if (wv.t <= 0) { waveBonus(1500, 'SURVIVED'); waveCleared('SURVIVED', wv.kills + ' SHOT DOWN'); }
+    },
+    kill() { wv.kills++; },
+    label() { return 'HOLD OUT ' + Math.max(0, Math.ceil(wv.t)) + 's'; },
+  },
+
+  // ---- ACE SQUADRON: three gold-trimmed elites fly in together ----
+  squadron: {
+    name: 'ACE SQUADRON',
+    start() {
+      const n = 3 + lapN(), f = fwdOf(player), side = Math.random() < 0.5 ? -1 : 1;
+      const at = { x: clamp(player.x + f[0] * 130 - f[2] * 50 * side, -MAP + 30, MAP - 30), y: clampAlt(player.y + 8), z: clamp(player.z + f[2] * 130 + f[0] * 50 * side, -MAP + 30, MAP - 30) };
+      const list = [];
+      for (let i = 0; i < n; i++) {
+        const b = spawnBot('ace', { x: at.x + i * 6, y: at.y, z: at.z + i * 6 }); if (!b) continue;
+        Object.assign(b, { squad: true, hp: Math.ceil(7 * lapK()), pts: 700, spd: 1.18 });
+        scene.remove(b.mesh); b.mesh = makePlane(0x1c1d2a, 0xffc83d, 'falcon'); scene.add(b.mesh); orientPlane(b, 0);
+        list.push(b);
+      }
+      wv = { list };
+      Sound.sfxSiren();
+      return list.length + ' ELITES INBOUND';
+    },
+    update() {
+      if (wv.list.every(b => b.dead)) { waveBonus(1500, 'SQUADRON DOWN'); waveCleared('SQUADRON DOWN'); }
+    },
+    kill(o) { if (o && o.squad) { const left = wv.list.filter(b => !b.dead).length; if (left) popup(o.x, o.y + 5, o.z, 'ACE DOWN · ' + left + ' LEFT', true); } },
+    label() { return 'ACES ' + wv.list.filter(b => !b.dead).length + ' LEFT'; },
+  },
+};
+
+// ---- meshes ----
+const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff3b5c, transparent: true, opacity: 0.3, depthWrite: false });
+function makeGate() {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(8.5, 0.75, 10, 40), new THREE.MeshBasicMaterial({ color: 0xffd24a }));
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(8, 32), new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
+  g.add(ring, disc);
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, l = new THREE.Mesh(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xffffff })); l.position.set(Math.cos(a) * 8.5, Math.sin(a) * 8.5, 0); l.scale.setScalar(1.1); g.add(l); }
+  g.userData = { ring, disc };
+  return g;
+}
+function armGate() {
+  const g = wv.list[wv.i]; if (!g) return;
+  const from = wv.i ? wv.list[wv.i - 1] : player, d = dist3(from, g);
+  wv.t = clamp(d / Math.max(10, playerSpeed()) * 2.4 + 3, 6, 11);
+  g.prev = -1;
+  for (const [k, q] of wv.list.entries()) q.mesh.visible = k === wv.i || k === wv.i + 1;
+}
+function passGate(g) {
+  wv.got++; wv.streak++;
+  const pts = Math.round((250 + 50 * wv.streak) * lapK()); killPts += pts;
+  ringBoostT = 1.4;
+  popup(g.x, g.y + 3, g.z, 'GATE ' + (wv.i + 1) + '/' + wv.list.length + ' +' + pts, true);
+  shockwave(g.x, g.y, g.z, 16, 0xffd24a, 0.45);
+  Sound.tone(880 + wv.streak * 60, 0.12, 'triangle', 0.08); Sound.tone(1320 + wv.streak * 60, 0.18, 'triangle', 0.08, null, 0.08);
+  nextGate(g);
+}
+function missGate(g) {
+  wv.streak = 0;
+  popup(player.x, player.y + 3, player.z, 'GATE MISSED'); Sound.tone(220, 0.25, 'sawtooth', 0.07, 110);
+  nextGate(g);
+}
+function nextGate(g) {
+  scene.remove(g.mesh); wv.i++; updateHud(true);
+  if (wv.i < wv.list.length) { armGate(); return; }
+  const all = wv.got === wv.list.length;
+  if (all) { waveBonus(1500, 'PERFECT RUN'); player.ammo = maxAmmo(); }
+  waveCleared(all ? 'PERFECT RUN' : 'GATE RUN OVER', wv.got + '/' + wv.list.length + ' GATES');
+}
+function waveMarks() { const w = WAVES[wtype]; return dirPhase === 'wave' && w && w.marks ? w.marks() : []; }
+
+// ---- bomber flight: straight for the far edge, tail gunner covers the six ----
+function updateBomber(b, dt, hostile) {
+  const gx = b.sx + b.dx * (b.len + 40), gz = b.sz + b.dz * (b.len + 40);
+  turnToward(b, Math.atan2(gz - b.z, gx - b.x), 0.6, dt);
+  b.p = lerp(b.p, clamp((b.cy - b.y) * 0.05, -0.2, 0.2), Math.min(1, dt * 2));
+  const bs = botSpeed() * b.spd, cp = Math.cos(b.p);
+  b.x += Math.cos(b.a) * cp * bs * dt; b.z += Math.sin(b.a) * cp * bs * dt; b.y = clamp(b.y + Math.sin(b.p) * bs * dt, ALT_MIN, ALT_MAX);
+  b.roll = lerp(b.roll, 0, dt * 2);
+  b.gunCd -= dt;
+  const f = fwdOf(b), dx = player.x - b.x, dy = player.y - b.y, dz = player.z - b.z, d = Math.hypot(dx, dy, dz) || 1;
+  if (hostile && player.alive && state === 'playing' && d < 58 && (dx * f[0] + dy * f[1] + dz * f[2]) / d < 0.25 && b.gunCd <= 0) {
+    fire(b, true, { x: player.x + rand(-2.5, 2.5), y: player.y + rand(-1.5, 1.5), z: player.z + rand(-2.5, 2.5) });
+    Sound.sfxEnemyShoot(b); b.gunCd = rand(0.8, 1.4) / Math.min(1.6, lapK());
+  }
+  b.trailT -= dt;
+  if (b.trailT <= 0) {
+    b.trailT = 0.07;
+    for (const sd of [-1, 1]) addPart(b.x - f[0] * 5 - Math.sin(b.a) * sd * 4, b.y - 0.5, b.z - f[2] * 5 + Math.cos(b.a) * sd * 4, 0, 0.6, 0, 0.8, 0.7, 0xdddddd, 1);
+  }
+}
+
+// ---- stage hazards: desert sandstorms, night-front lightning ----
+const HZ = { sandCd: 12, sandT: 0, fogK: 0, wx: 0, wz: 0, boltCd: 5, bolts: [], flash: 0, farCd: 4 };
+const boltGeo = new THREE.CylinderGeometry(7, 7, 170, 24, 1, true);
+const boltSeg = new THREE.CylinderGeometry(0.5, 0.5, 1, 6);
+const boltMat = new THREE.MeshBasicMaterial({ color: 0xf2f7ff, fog: false });
+const _up = new THREE.Vector3(0, 1, 0), _bv = new THREE.Vector3();
+function resetHazards() {
+  HZ.sandT = 0; HZ.sandCd = 12; HZ.fogK = 0; HZ.boltCd = 5; HZ.flash = 0; HZ.farCd = 4;
+  for (const b of HZ.bolts) scene.remove(b.mesh);
+  HZ.bolts = [];
+  if (themeNow >= 0) { const t = THEMES[themeNow]; scene.fog.color.set(t.fog); scene.fog.near = t.fogN; scene.fog.far = t.fogF; hemi.intensity = t.hemi[2]; }
+}
+const _fc = new THREE.Color(), _sandC = new THREE.Color(0xd9a86a);
+function updateHazards(dt) {
+  if (themeNow < 0) return;
+  const t = THEMES[themeNow], live = state === 'playing';
+  // sandstorm: every ~25s during waves the fog closes in and a crosswind shoves you around
+  if (t.sandstorm && live && dirPhase === 'wave') {
+    if (HZ.sandT > 0) HZ.sandT -= dt;
+    else if ((HZ.sandCd -= dt) <= 0) {
+      HZ.sandT = 10; HZ.sandCd = rand(20, 28);
+      const a = rand(0, Math.PI * 2); HZ.wx = Math.cos(a); HZ.wz = Math.sin(a);
+      banner('SANDSTORM', 'VISIBILITY DROPPING &middot; TRUST YOUR RADAR', '#ffb13b');
+      Sound.noise(2.5, 0.12, 500); Sound.tone(90, 2, 'sine', 0.08, 60);
+    }
+  } else if (!live) HZ.sandT = Math.min(HZ.sandT, 0);
+  else HZ.sandT = 0;
+  const target = HZ.sandT > 0 ? 1 : 0;
+  if (HZ.fogK || target) {
+    HZ.fogK = clamp(HZ.fogK + (target ? dt * 0.7 : -dt * 0.5), 0, 1);
+    const k = HZ.fogK;
+    scene.fog.near = lerp(t.fogN, 8, k); scene.fog.far = lerp(t.fogF, 95, k);
+    scene.fog.color.copy(_fc.set(t.fog).lerp(_sandC, k));
+    if (live && k > 0.2) {
+      player.x += HZ.wx * 5 * k * dt; player.z += HZ.wz * 5 * k * dt;
+      for (let i = 0; i < 3; i++) addPart(player.x + rand(-26, 26) - HZ.wx * 20, player.y + rand(-10, 10), player.z + rand(-26, 26) - HZ.wz * 20, HZ.wx * 40, rand(-1, 1), HZ.wz * 40, 0.8, rand(0.2, 0.45), 0xe0b07a);
+    }
+  }
+  // lightning: a glowing column marks the strike point, then the bolt lands
+  if (t.lightning && live && (dirPhase === 'wave' || dirPhase === 'boss')) {
+    if ((HZ.boltCd -= dt) <= 0) {
+      HZ.boltCd = dirPhase === 'boss' ? rand(6, 9) : rand(3.2, 5.5);
+      const f = fwdOf(player), lead = playerSpeed() * 1.4, spot = Math.random() < 0.45 ? 0 : rand(8, 22), sa = rand(0, Math.PI * 2);
+      const x = clamp(player.x + f[0] * lead + Math.cos(sa) * spot, -MAP + 10, MAP - 10), z = clamp(player.z + f[2] * lead + Math.sin(sa) * spot, -MAP + 10, MAP - 10);
+      const mesh = new THREE.Mesh(boltGeo, new THREE.MeshBasicMaterial({ color: 0xbfe0ff, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide }));
+      mesh.position.set(x, 85, z); scene.add(mesh);
+      HZ.bolts.push({ x, z, t: 1.4, mesh, fired: false });
+      Sound.tone(1200, 1.3, 'sine', 0.025, 2400);
+    }
+    if ((HZ.farCd -= dt) <= 0) { HZ.farCd = rand(4, 9); HZ.flash = Math.max(HZ.flash, 0.45); Sound.noise(1.6, 0.06, 220, 0.6); }
+    for (let i = 0; i < 2; i++) addPart(player.x + rand(-30, 30), player.y + rand(8, 20), player.z + rand(-30, 30), 0, -60, 0, 0.35, 0.12, 0xbfd6ff);
+  }
+  for (const b of HZ.bolts) {
+    b.t -= dt;
+    if (!b.fired) {
+      b.mesh.material.opacity = 0.08 + (1 - b.t / 1.4) * 0.3 + (Math.floor(time * 14) % 2 ? 0.08 : 0);
+      if (b.t <= 0) strikeBolt(b);
+    } else if (b.t <= -0.18) { scene.remove(b.mesh); b.dead = true; }
+  }
+  HZ.bolts = HZ.bolts.filter(b => !b.dead);
+  if (HZ.flash > 0) { HZ.flash = Math.max(0, HZ.flash - dt * 3); hemi.intensity = t.hemi[2] + HZ.flash * 3; }
+}
+function strikeBolt(b) {
+  b.fired = true; scene.remove(b.mesh);
+  // jagged bolt from the clouds to the sea
+  const g = new THREE.Group(); let px = b.x + rand(-6, 6), py = 170, pz = b.z + rand(-6, 6);
+  for (let k = 0; k < 9; k++) {
+    const ny = k === 8 ? 0 : py - 170 / 9, nx = k === 8 ? b.x : b.x + rand(-5, 5), nz = k === 8 ? b.z : b.z + rand(-5, 5);
+    const s = new THREE.Mesh(boltSeg, boltMat), len = Math.hypot(nx - px, ny - py, nz - pz);
+    s.position.set((px + nx) / 2, (py + ny) / 2, (pz + nz) / 2); s.scale.set(1, len, 1);
+    s.quaternion.setFromUnitVectors(_up, _bv.set(nx - px, ny - py, nz - pz).normalize()); g.add(s);
+    px = nx; py = ny; pz = nz;
+  }
+  scene.add(g); b.mesh = g;
+  HZ.flash = 1;
+  const dh = Math.hypot(player.x - b.x, player.z - b.z);
+  shockwave(b.x, clamp(player.y, 1, 60), b.z, 14, 0xbfe0ff, 0.4);
+  Sound.noise(0.9, 0.4, 500); Sound.tone(55, 1, 'sine', 0.3, 30); Sound.noise(0.15, 0.25, 4000);
+  shake = Math.max(shake, dh < 40 ? 0.45 : 0.15);
+  if (state === 'playing' && dh < 7.5) { damage(); popup(player.x, player.y + 2, player.z, 'LIGHTNING!'); }
+  for (const e of bots) if (!e.dead && !e.bomber && Math.hypot(e.x - b.x, e.z - b.z) < 7.5) { popup(e.x, e.y + 3, e.z, 'STRUCK!'); killBot(e); }
+}
+
+// ---- checkpoints: each stage's boss fight is recorded once reached (1) and beaten (2) ----
+const CP_BOSS = { 1: 'SKY FORTRESS', 2: 'OMEGA TITAN', 3: 'FALCON ZERO', 4: 'IRON LEVIATHAN' };
+const checkpoints = { 1: 0, 2: 0, 3: 0, 4: 0 };
+let runCheckpoint = 0, runReached = 0;
+function loadCheckpoints(raw) { try { const c = JSON.parse(raw || '{}'); for (const k of Object.keys(checkpoints)) if (Number.isInteger(c[k])) checkpoints[k] = clamp(c[k], 0, 2); } catch (e) {} }
+const saveCheckpoints = () => Store.set('checkpoints', JSON.stringify(checkpoints));
+function reachCheckpoint(n) {
+  if (!CP_BOSS[n]) return;
+  runReached = Math.max(runReached, n);
+  if (checkpoints[n] < 1) { checkpoints[n] = 1; saveCheckpoints(); }
+  toast('CHECKPOINT SAVED · STAGE ' + n + ' ' + CP_BOSS[n]);
+}
+function clearCheckpoint(n) { if (CP_BOSS[n] && checkpoints[n] < 2) { checkpoints[n] = 2; saveCheckpoints(); } }
+function renderCheckpoints() {
+  $('cpRow').classList.toggle('hidden', !Object.values(checkpoints).some(v => v > 0));
+  for (const n of Object.keys(CP_BOSS)) {
+    const b = $('btnCp-' + n);
+    b.classList.toggle('hidden', !checkpoints[n]);
+    b.innerHTML = `&#9654; S${n} ${CP_BOSS[n]}${checkpoints[n] >= 2 ? ' <span class="cpDone">&#10003;</span>' : ''}`;
+  }
+}
+// a checkpoint run starts with the upgrades a normal run would have picked by then
+function grantCheckpointUpgrades(n) {
+  const k = 3 * (n - 1) + 2, got = [];
+  for (let i = 0; i < k; i++) { const u = rollUpgrades(3).find(u => u.id !== 'repair'); if (!u) break; u.apply(); got.push(u.name); }
+  Object.assign(player, { hp: maxHp(), ammo: maxAmmo(), missiles: Math.max(player.missiles, Math.min(maxMsl(), 6)), flares: Math.max(player.flares, 4) });
+  if (got.length) toast('CHECKPOINT · ' + got.length + ' UPGRADES EQUIPPED');
+}
+for (const n of Object.keys(CP_BOSS)) onBtn('btnCp-' + n, () => { if (state !== 'title') return; Sound.sfxClick(); startRun(+n); });
+onBtn('btnRetryCp', () => { if (state !== 'over' || busy) return; Sound.sfxClick(); startRun(runReached || runCheckpoint); });
+
 // ---------- boot ----------
 $('titleKeys').innerHTML = IS_TOUCH
   ? ['Drag anywhere to steer &amp; climb', 'FIRE to shoot', 'MSL / FLARE / SPECIAL buttons', 'AIM to lock on'].map(t => `<span style="white-space:nowrap">${t}</span>`).join(' &middot; ')
@@ -4624,6 +5044,7 @@ garage.planes = PLANES.map(p => p.id); garage.paints = PAINTS.map(p => p.id);
 for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = items.map(p => p.id);
 saveGarage();
 loadAudio(await Store.get('audio'));
+loadCheckpoints(await Store.get('checkpoints'));
 tutorialDone = (await Store.get('tut')) === '1';
 // test hook: open the page with #fortress / #titan / #ace / #carrier to start at that stage's boss
 { const hw = 3; if (hw) window.__warpStage = hw; }
@@ -4634,6 +5055,8 @@ CG.loadingStop();
 $('loading').classList.add('hidden');
 toTitle();
 // Daily rewards remain available from the menu without blocking first play.
+// test hook: #dbg exposes the module scope for headless checks
+if (location.hash === '#dbg') window.__dbg = { ev: s => eval(s) };
 
 </script>
 </body>

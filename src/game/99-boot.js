@@ -18,6 +18,7 @@ garage.planes = PLANES.map(p => p.id); garage.paints = PAINTS.map(p => p.id);
 for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = items.map(p => p.id);
 saveGarage();
 loadAudio(await Store.get('audio'));
+loadCheckpoints(await Store.get('checkpoints'));
 tutorialDone = (await Store.get('tut')) === '1';
 // test hook: open the page with #fortress / #titan / #ace / #carrier to start at that stage's boss
 { const hw = { '#fortress': 1, '#titan': 2, '#ace': 3, '#carrier': 4 }[location.hash]; if (hw) window.__warpStage = hw; }
@@ -28,3 +29,5 @@ CG.loadingStop();
 $('loading').classList.add('hidden');
 toTitle();
 // Daily rewards remain available from the menu without blocking first play.
+// test hook: #dbg exposes the module scope for headless checks
+if (location.hash === '#dbg') window.__dbg = { ev: s => eval(s) };

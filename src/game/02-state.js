@@ -340,7 +340,8 @@ function clearWorld() {
   bullets = []; parts = []; decoys = [];
   if (boss) scene.remove(boss.mesh);
   turrets = turrets.filter(t => { if (t.carrier) { scene.remove(t.mesh); return false; } return true; });
-  clearMines(); resetRun(); dirPhase = 'none';
+  if (dirPhase === 'wave') endWave();
+  clearMines(); resetRun(); resetHazards(); dirPhase = 'none'; wv = {};
   boss = null; bossWarnT = 0; combo = 0; comboT = 0;
   $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('titan', 'ace', 'shield'); $('bossWarn').classList.add('hidden'); $('combo').classList.add('hidden');
   hideCine(); slowT = 0; slowScale = 1;
@@ -361,6 +362,7 @@ function toTitle() {
   $('titleCoins').textContent = garage.coins;
   $('dailyBadge').hidden = !canClaimDaily();
   setHud(false); $('hint').classList.add('hidden');
+  renderCheckpoints();
   showOnly('title');
 }
 function openDaily() {
@@ -380,7 +382,8 @@ function openGarage() {
   showOnly('garage');
 }
 
-function startRun() {
+function startRun(cp) {
+  cp = +cp || window.__warpStage || 0;   // start at stage cp's boss (checkpoint / test warp)
   clearWorld(); clearInput(); resetSpecial();
   Object.assign(player, { x: 0, y: ALT, z: 0, a: -Math.PI / 2, p: 0, roll: 0, hp: maxHp(), ammo: startAmmo(), missiles: startMissiles(), flares: startFlares(),
     invul: 0, fireCd: 0, mslCd: 0, flareCd: 0, alive: true });
@@ -390,7 +393,9 @@ function startRun() {
   titanPhase = 'none'; titanT = 0; titanWarned = false; titanSlain = false; supplyT = 14;
   acePhase = 'none'; aceT = 0; aceWarned = false; aceSlain = false;
   carrierPhase = 'none'; carrierT = 0; carrierWarned = false; carrierSunk = false;
-  initDirector(window.__warpStage || 1, !!window.__warpStage);
+  runCheckpoint = CP_BOSS[cp] ? cp : 0; runReached = 0;
+  initDirector(runCheckpoint || 1, !!runCheckpoint);
+  if (runCheckpoint) grantCheckpointUpgrades(runCheckpoint);
   for (let i = 0; i < 7; i++) spawnPickup('ammo');
   spawnPickup('missile');
   setupTurrets();
@@ -450,7 +455,7 @@ function crash() {
 function showOver() {
   state = 'over';
   setHud(false);
-  const sc = scoreNow(), isNew = sc > best;
+  const sc = scoreNow(), isNew = !runCheckpoint && sc > best;   // checkpoint runs don't count for BEST
   if (isNew) { const had = best > 0; best = sc; Store.set('best', best); if (had) CG.happytime(); }
   // coins: the whole run earns floor(score / 50); only the part not paid out yet is added (continue-safe)
   const earned = runCoins() - runCoinsGiven;
@@ -468,12 +473,16 @@ function showOver() {
   $('aceBadge').classList.toggle('hidden', !aceSlain);
   $('carrierBadge').classList.toggle('hidden', !carrierSunk);
   $('btnRevive').classList.add('hidden');
+  $('cpNote').classList.toggle('hidden', !runCheckpoint);
+  const retry = runReached || runCheckpoint;
+  $('btnRetryCp').classList.toggle('hidden', !retry);
+  if (retry) $('btnRetryCp').innerHTML = '&#8635; RETRY S' + retry + ' ' + CP_BOSS[retry];
   $('btnRevive').innerHTML = '<span class="adTag">AD</span>CONTINUE';
   setOverButtons(true);
   showOnly('over');
   Sound.sfxOver();
 }
-function setOverButtons(on) { for (const id of ['btnRevive', 'btnAgain', 'btnOverGarage']) $(id).disabled = !on; }
+function setOverButtons(on) { for (const id of ['btnRevive', 'btnAgain', 'btnOverGarage', 'btnRetryCp']) $(id).disabled = !on; }
 
 function revive() {
   revived = true;

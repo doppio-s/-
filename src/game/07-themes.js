@@ -5,13 +5,13 @@ const THEMES = [
     sand: 0xffe1a1, hills: [0x6fd36a, 0x58c04f, 0x8ae26b, 0x4fb862], trunk: 0xa8663a, leaves: [0x6fd36a, 0x58c04f, 0x8ae26b, 0x4fb862] },
   { sky: ['#d9604e', '#f3a863', '#ffe0a8'], fog: 0xf5c992, fogN: 60, fogF: 280, sea: '#dcae6c', seaLine: '#f0cd92',
     hemi: [0xffe0b8, 0x9a6a45, 1.3], sun: [0xffc27a, 2.5], cloud: [0xffe6cc, 0x5a3a2a], high: [0xffd9b8, 0x6a4030],
-    sand: 0xd39a5e, hills: [0xc0643a, 0xa9502e, 0xd4804a, 0xb85c36], trunk: 0x6b8f3a, leaves: [0x6f9a3a, 0x7fae44, 0x5f8a30, 0x86b04c] },
+    sand: 0xd39a5e, hills: [0xc0643a, 0xa9502e, 0xd4804a, 0xb85c36], trunk: 0x6b8f3a, leaves: [0x6f9a3a, 0x7fae44, 0x5f8a30, 0x86b04c], sandstorm: true },
   { sky: ['#02030c', '#070a26', '#141440'], fog: 0x0a0c26, fogN: 140, fogF: 560, sea: '#0a0c26', seaLine: '#141440',
     hemi: [0xc0b8ff, 0x302860, 1.2], sun: [0xfff2e0, 2.3], cloud: [0xeae6ff, 0x3a3060], high: [0xffffff, 0x302850],
     stars: true, asteroids: true, space: true, noIslands: true, noTurrets: true, noHigh: true },
   { sky: ['#030816', '#0b1a3c', '#26396a'], fog: 0x18264a, fogN: 60, fogF: 280, sea: '#1a3868', seaLine: '#2f5a92',
     hemi: [0x8fa8ff, 0x0a1428, 0.75], sun: [0xbcd0ff, 1.15], cloud: [0x6a7498, 0x101828], high: [0x55607a, 0x0a1020],
-    sand: 0x5f6474, hills: [0x2c4a3a, 0x264236, 0x345646, 0x2a4838], trunk: 0x3a2a20, leaves: [0x21402f, 0x2a4a36, 0x1c3a2a, 0x274634], stars: true },
+    sand: 0x5f6474, hills: [0x2c4a3a, 0x264236, 0x345646, 0x2a4838], trunk: 0x3a2a20, leaves: [0x21402f, 0x2a4a36, 0x1c3a2a, 0x274634], stars: true, lightning: true },
 ];
 let themeNow = -1;
 // star dome for the high-altitude and night stages
