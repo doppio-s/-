@@ -1013,7 +1013,8 @@ const ENGINE_VOICE = {
   prism: ["sine", "sine", 3, 4.5, 7, 10], viper: ["sawtooth", "square", 4.2, 6.3, 22, 40], anvil: ["sawtooth", "triangle", .55, 1.1, 6, 10]
 };
 
-function makePlane(bodyCol, wingCol, shape = "classic", lite) {
+function makePlane(bodyCol, wingCol, shape = "classic", lite) { const m = makePlaneBase(bodyCol, wingCol, shape, lite); m.userData.look = [bodyCol, wingCol, shape]; return m; }
+function makePlaneBase(bodyCol, wingCol, shape = "classic", lite) {
   if (["classic", "swift", "brick", "twin", "falcon"].includes(shape)) return makeHero(bodyCol, wingCol, shape, lite);
   if (shape === "viper") return makeViper(bodyCol, wingCol);
   if (shape === "anvil") return makeAnvil(bodyCol, wingCol);
@@ -1176,7 +1177,7 @@ function instanced(geo, mat, list, cast = !0) {
 }
 const ISLANDS = [],
   WORLD = {};
-(function() {
+withSeed(20240925, function() {   // seeded so every device builds the same world (netplay)
   const islands = ISLANDS;
   for (let tries = 0; islands.length < Math.round(70 * MAP_K * MAP_K * .85) && tries < 3e4; tries++) {
     const x = rand(-MAP - 80, MAP + 80),
@@ -1257,7 +1258,7 @@ const ISLANDS = [],
     im: instanced(G.cyl, white, trunks),
     list: trunks
   }, WORLD.leaves = {
-    im: instanced(G.sphMid, white, leaves),
+    im: instanced(G.sphLo, white, leaves),
     list: leaves
   };
   const puffs = [];
@@ -1280,7 +1281,7 @@ const ISLANDS = [],
       })
     }
   }
-  WORLD.puffs = instanced(G.sphMid, new THREE.MeshStandardMaterial({
+  WORLD.puffs = instanced(G.sphLo, new THREE.MeshStandardMaterial({   // low-poly: there are ~1900 of them
     color: 16777215,
     roughness: 1,
     emissive: 3820122
@@ -1305,7 +1306,7 @@ const ISLANDS = [],
       })
     }
   }
-  WORLD.high = instanced(G.sphMid, new THREE.MeshStandardMaterial({
+  WORLD.high = instanced(G.sphLo, new THREE.MeshStandardMaterial({
     color: 16777215,
     roughness: 1,
     emissive: 5595242
@@ -1339,7 +1340,7 @@ const ISLANDS = [],
       })
     }
   WORLD.posts = instanced(G.cyl, white, posts), WORLD.tops = instanced(G.sphLo, white, tops)
-})();
+});
 const MAXB = 480,
   MAXP = 800,
   bulletMesh = new THREE.InstancedMesh(G.sphLo, new THREE.MeshBasicMaterial({
@@ -1973,7 +1974,7 @@ const saveGarage = () => Store.set("garage", JSON.stringify(garage)),
   boostSecsOf = p => 1 / (.3 * (1 - .35 * tierOf(p))),
   paintNow = () => PAINTS.find(p => p.id === garage.paint) || PAINTS[0],
   armorOf = (p, mod = partStats()) => Math.max(0, p.armor + garage.lv.armor + mod.hp + run.hp),
-  maxHp = () => HEARTS + armorOf(planeNow()),
+  maxHp = () => netHpMax || HEARTS + armorOf(planeNow()),
   maxAmmo = () => Math.round((40 + 10 * garage.lv.ammo) * (1 + .5 * run.ammo)),
   startAmmo = () => 12 + 6 * garage.lv.ammo,
   ammoBox = () => Math.round((8 + 2 * garage.lv.ammo) * (1 + .5 * run.ammo)),
@@ -2337,7 +2338,7 @@ function removePickup(p) {
 }
 
 function showOnly(id) {
-  for (const s2 of ["title", "pause", "over", "garage", "daily"]) $(s2).classList.toggle("hidden", s2 !== id)
+  for (const s2 of ["title", "pause", "over", "garage", "daily", "netScreen", "duelEnd"]) $(s2).classList.toggle("hidden", s2 !== id)
 }
 
 function setHud(on) {
@@ -2412,14 +2413,16 @@ function enterReady() {
 }
 
 function beginPlaying() {
-  state === "ready" && (state = "playing", $("hint").classList.add("hidden"))
+  state === "ready" && !(netGame === "duel" && duel.countT > 0) && (state = "playing", $("hint").classList.add("hidden"))
 }
 
 function pauseGame() {
+  if (netGame) { netPause(); return }
   state !== "playing" && state !== "ready" || (state = "paused", clearInput(), hideTip(), $("bossWarn").classList.add("hidden"), CG.gameplayStop(), $("hint").classList.add("hidden"), $("btnPause").classList.add("hidden"), $("btnFire").classList.add("hidden"), $("btnAds").classList.add("hidden"), $("weaponBtns").classList.add("hidden"), $("thrBtns").classList.add("hidden"), $("flt").classList.add("hidden"), $("stallWarn").hidden = !0, $("btnSpecial").classList.add("hidden"), specialHudKey = "off", showOnly("pause"))
 }
 
 function resumeGame() {
+  if (netHold) { netResume(); return }
   state === "paused" && enterReady()
 }
 
@@ -2997,7 +3000,7 @@ function updateMissiles(dt) {
 }
 
 function update(dt) {
-  if (time += dt, updateSpace(dt), updateAsteroids(dt), updateObstacles(dt), updateHazards(dt), updateHitFx(dt), (state === "playing" || state === "dying" || state === "over") && updateMines(dt), seaTex.offset.x = (seaTex.offset.x + dt * .004) % 1, state === "title" || state === "garage" || state === "daily") player.a = wrapA(player.a + dt * .35), player.roll = lerp(player.roll, .35, dt * 3), player.p = 0, player.x += Math.cos(player.a) * 12 * dt, player.z += Math.sin(player.a) * 12 * dt, player.y = ALT + Math.sin(time * 2) * .3;
+  if (time += dt, updateSpace(dt), updateAsteroids(dt), updateObstacles(dt), updateHazards(dt), updateHitFx(dt), (state === "playing" || state === "dying" || state === "over") && updateMines(dt), seaTex.offset.x = (seaTex.offset.x + dt * .004) % 1, state === "title" || state === "garage" || state === "daily" || state === "netmenu" || state === "netend") player.a = wrapA(player.a + dt * .35), player.roll = lerp(player.roll, .35, dt * 3), player.p = 0, player.x += Math.cos(player.a) * 12 * dt, player.z += Math.sin(player.a) * 12 * dt, player.y = ALT + Math.sin(time * 2) * .3;
   else if (state === "ready") player.roll = lerp(player.roll, 0, dt * 4), player.p = lerp(player.p, 0, dt * 4);
   else if (state === "playing") {
     gameTime += dt, updateSpecial(dt), updatePlayer(dt), updateTitanFlow(dt), updateAceFlow(dt), updateCarrierFlow(dt), updateSerpentFlow(dt), botSpawnCd -= dt, updateDirector(dt), updateBots(dt, !playerHidden()), updateTurrets(dt), updateMissiles(dt);
@@ -3079,6 +3082,7 @@ function snapCamera() {
 }
 
 function updateCamera(dt) {
+  if (state === "mirror" && netGame === "coop") { coopGunnerCamera(dt); return }
   if (adsK = lerp(adsK, aiming() ? 1 : 0, Math.min(1, dt * 10)), fovKick = lerp(fovKick, state === "playing" && ramTime > 0 ? 1.16 : state === "playing" && player.boosting ? 1.1 : player.braking ? .96 : 1, Math.min(1, dt * 6)), state !== "dying" && state !== "over") {
     const aimA = player.a + (rearView ? Math.PI : 0), lag = wrapA(aimA - camA);
     camA = Math.abs(lag) > 2.2 && rearSwingT <= 0 ? aimA : wrapA(camA + lag * Math.min(1, dt * (rearSwingT > 0 ? 7 : 5.5 + 3 * adsK))), camP = lerp(camP, (rearView ? -1 : 1) * (player.p || 0), Math.min(1, dt * 6));
@@ -3351,7 +3355,7 @@ function updateCockpit(dt) {
 }
 
 function updateAimUI() {
-  const show = state === "playing" || state === "ready";
+  const show = state === "playing" || state === "ready" || state === "mirror";
   if (reticle.hidden = !show, markerBox.hidden = !show, $("steerPad").hidden = !show || input.pointerMode === "touch", !show) {
     $("mslWarn").hidden = !0, $("joy").hidden = $("leadPip").hidden = !0, hideBeam();
     return
@@ -3411,7 +3415,7 @@ function updateAimUI() {
     lbl: t.launcher ? "SAM " : "AA ",
     noArrow: !0
   });
-  list.unshift(...waveMarks());
+  list.unshift(...waveMarks(), ...netMarks());
   for (const m of missiles) m.enemy && m.target === player && list.push({
     o: m,
     cls: "msl",
@@ -3514,6 +3518,7 @@ function drawRadar() {
   for (const t of turrets) t.dead || dot(t, t.sCore ? "#7ff3ff" : t.strike ? "#ff2d55" : "#ffa94d", t.strike || t.sCore ? 10 : 7, "sq");
   if (boss && boss.serpent && !boss.dead) for (const s of boss.segs) dot(s, "#1f8a7a", 5);
   for (const b of bots) dot(b, b.bomber ? "#ffd24a" : b.squad ? "#ffc83d" : b.kind === "ace" ? "#ff00aa" : "#ff3b3b", b.bomber ? 13 : b.heavy ? 11 : 9);
+  netGame === "duel" && duel.rival && duel.rival.alive && dot(duel.rival, "#ff5c8a", 12);
   for (const m of waveMarks()) m.cls === "gate" && dot(m.o, Math.floor(time * 4) % 2 ? "#ffd24a" : "#ffffff", 9, "sq");
   boss && !boss.dead && !(boss.cloakT > 0) && dot(boss, boss.titan ? Math.floor(time * 6) % 2 ? "#ff2d55" : "#ffd24a" : "#ffbb58", boss.titan ? 20 : 15, "sq"), rctx.restore(), rctx.save(), rctx.translate(cx, cx), rctx.rotate(-Math.PI / 2), rctx.fillStyle = "#fff", rctx.beginPath(), rctx.moveTo(16, 0), rctx.lineTo(-10, 10), rctx.lineTo(-5, 0), rctx.lineTo(-10, -10), rctx.closePath(), rctx.fill(), rctx.restore()
 }
@@ -3561,7 +3566,7 @@ function frame(now) {
   last = now, smDt += (rf - smDt) * (Math.abs(rf - smDt) > .02 ? 1 : .3), perfGovern(rf);
   const raw = smDt;
   let dt = raw;
-  slowT > 0 && (slowT -= raw, dt *= slowScale, slowT <= 0 && (slowScale = 1)), state !== "paused" && state !== "loading" && update(dt), updateCamera(dt), updateEngineAudio(), renderPreview(raw), camera.updateMatrixWorld(), updateAimUI(), updateCockpit(raw), updateLocks(dt), updateNova(dt), updateCombatFx(dt, raw), updateSpecialHud(), syncInstances(), drawRadar(), renderer.render(scene, camera), requestAnimationFrame(frame)
+  slowT > 0 && (slowT -= raw, dt *= slowScale, slowT <= 0 && (slowScale = 1)), state !== "paused" && state !== "loading" && update(dt), netTick(raw), updateCamera(dt), updateEngineAudio(), renderPreview(raw), camera.updateMatrixWorld(), updateAimUI(), updateCockpit(raw), updateLocks(dt), updateNova(dt), updateCombatFx(dt, raw), updateSpecialHud(), syncInstances(), drawRadar(), window.__noRender || renderer.render(scene, camera), requestAnimationFrame(frame)
 }
 $("audioDialog").addEventListener("click", e => { (e.target === $("audioDialog") || e.target.closest("[data-close]")) && $("audioDialog").close(); });
 const cvs = $("c");
@@ -3576,7 +3581,7 @@ cvs.addEventListener("pointerdown", e => {
       beginPlaying();
       return
     }
-    state === "playing" && (input.mouseFire = !0)
+    (state === "playing" || state === "mirror") && (input.mouseFire = !0)
   } else input.pointerMode = "touch", input.mouseActive = !1, input.touchId === null && (cvs.setPointerCapture(e.pointerId), input.touchId = e.pointerId, input.touchX = input.touchX0 = e.clientX, input.touchY = input.touchY0 = e.clientY), state === "ready" && beginPlaying()
 }), window.addEventListener("pointermove", e => {
   e.pointerType === "mouse" && input.pointerMode !== "touch" && (!IS_TOUCH || e.buttons) ? (input.mouseX = e.clientX, input.mouseY = e.clientY, input.mouseActive = !0) : e.pointerId === input.touchId && (input.touchX = e.clientX, input.touchY = e.clientY)
@@ -3596,7 +3601,7 @@ for (const [id, k] of [["btnBoost", "tBoost"], ["btnBrake", "tBrake"]]) {
 }
 const fireBtn = $("btnFire");
 fireBtn.addEventListener("pointerdown", e => {
-  e.preventDefault(), e.stopPropagation(), Sound.init(), state === "ready" && beginPlaying(), state === "playing" && (input.touchFire = !0, fireBtn.classList.add("on"))
+  e.preventDefault(), e.stopPropagation(), Sound.init(), state === "ready" && beginPlaying(), (state === "playing" || state === "mirror") && (input.touchFire = !0, fireBtn.classList.add("on"))
 });
 for (const ev of ["pointerup", "pointercancel", "pointerleave"]) fireBtn.addEventListener(ev, () => {
   input.touchFire = !1, fireBtn.classList.remove("on")
@@ -3633,13 +3638,13 @@ window.addEventListener("keydown", e => {
       e.preventDefault(), !e.repeat && !busy && performance.now() - overShownAt > 700 && $("btnAgain").click();
       return
     }
-    if (state !== "ready" && state !== "playing") {
+    if (state !== "ready" && state !== "playing" && state !== "mirror") {
       c === "Space" && e.preventDefault();
       return
     }
     if (e.preventDefault(), Sound.init(), state === "ready" && (e.repeat || beginPlaying(), KEY_FIRE.includes(c))) return;
-    KEY_LEFT.includes(c) && (input.left = !0, input.mouseActive = !1), KEY_RIGHT.includes(c) && (input.right = !0, input.mouseActive = !1), KEY_UP.includes(c) && (input.up = !0, input.mouseActive = !1), KEY_DOWN.includes(c) && (input.down = !0, input.mouseActive = !1), KEY_FIRE.includes(c) && state === "playing" && !e.repeat && (input.keyFire = !0), KEY_MSL.includes(c) && !e.repeat && playerMissile(), KEY_FLARE.includes(c) && !e.repeat && playerFlare(), KEY_ADS.includes(c) && (input.ads = !0), KEY_BOOST.includes(c) && (input.boost = !0), KEY_BRAKE.includes(c) && (input.brake = !0)
-  } else(c === "Escape" || c === "KeyP") && (state === "playing" || state === "ready" ? pauseGame() : state === "paused" && resumeGame())
+    KEY_LEFT.includes(c) && (input.left = !0, input.mouseActive = !1), KEY_RIGHT.includes(c) && (input.right = !0, input.mouseActive = !1), KEY_UP.includes(c) && (input.up = !0, input.mouseActive = !1), KEY_DOWN.includes(c) && (input.down = !0, input.mouseActive = !1), KEY_FIRE.includes(c) && (state === "playing" || state === "mirror") && !e.repeat && (input.keyFire = !0), KEY_MSL.includes(c) && !e.repeat && playerMissile(), KEY_FLARE.includes(c) && !e.repeat && playerFlare(), KEY_ADS.includes(c) && (input.ads = !0), KEY_BOOST.includes(c) && (input.boost = !0), KEY_BRAKE.includes(c) && (input.brake = !0)
+  } else(c === "Escape" || c === "KeyP") && (state === "playing" || state === "ready" || state === "mirror" ? pauseGame() : state === "paused" && resumeGame())
 }), window.addEventListener("keyup", e => {
   const c = e.code;
   KEY_LEFT.includes(c) && (input.left = !1), KEY_RIGHT.includes(c) && (input.right = !1), KEY_UP.includes(c) && (input.up = !1), KEY_DOWN.includes(c) && (input.down = !1), KEY_FIRE.includes(c) && (input.keyFire = !1), KEY_ADS.includes(c) && (input.ads = !1), KEY_BOOST.includes(c) && (input.boost = !1), KEY_BRAKE.includes(c) && (input.brake = !1)
@@ -3671,17 +3676,18 @@ onBtn("btnPlay", () => {
 }), onBtn("btnResume", () => {
   Sound.sfxClick(), resumeGame()
 }), onBtn("btnPauseMenu", () => {
-  state === "paused" && (Sound.sfxClick(), toTitle())
+  netHold ? (Sound.sfxClick(), netLeave()) : state === "paused" && (Sound.sfxClick(), toTitle())
 }), onBtn("btnMute", () => {
   Sound.setMuted(!Sound.muted), Sound.muted || Sound.sfxClick()
 }), onBtn("btnOverGarage", () => {
-  state !== "over" || busy || (Sound.sfxClick(), openGarage())
+  state !== "over" || busy || (Sound.sfxClick(), netGame ? netLeave() : openGarage())
 }), onBtn("btnRevive", async () => {
   if (state !== "over" || busy || revived) return;
   busy = !0, setOverButtons(!1), $("btnRevive").textContent = "Loading ad...";
   const r = await CG.ad("rewarded");
   busy = !1, state === "over" && (r === "ok" || r === "noads" ? (lastAdTime = Date.now(), revive()) : ($("btnRevive").innerHTML = '<span class="adTag">AD</span>CONTINUE', setOverButtons(!0), toast("No ad available right now. Try again later!")))
 }), onBtn("btnAgain", async () => {
+  if (netGame) { state === "over" && (Sound.sfxClick(), netBackToLobby()); return }
   state !== "over" || busy || (Sound.sfxClick(), !(CG.active && Date.now() - lastAdTime > 12e4 && (busy = !0, setOverButtons(!1), lastAdTime = Date.now(), await CG.ad("midgame"), busy = !1, state !== "over")) && startRun())
 });
 let pendingPurchase = null;
@@ -4529,6 +4535,7 @@ Sound.shot = function(profile, enemy = !1) {
 });
 
 function targetables() {
+  if (netGame === "duel") return duel.rival && duel.rival.alive ? [duel.rival] : [];
   return boss && !boss.dead && !(boss.cloakT > 0) && !boss.carrier && !(boss.serpent && !serpentTargetable()) ? [...bots, ...turrets, boss] : [...bots, ...turrets]
 }
 
@@ -6091,6 +6098,8 @@ const UNDERS = [];   // fly-under gaps for the slalom: { x, y, z, ax } — ax is
 let obstGroup = null, closeCallT = 0;
 function clearObstacles() { if (obstGroup) scene.remove(obstGroup); obstGroup = null; OBST.length = 0; UNDERS.length = 0; }
 function obstRng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+// run fn with Math.random (and so rand()) replaced by a seeded generator
+function withSeed(seed, fn) { const mr = Math.random; Math.random = obstRng(seed); try { return fn(); } finally { Math.random = mr; } }
 function obstFreeSpot(rnd, r, keep) {
   for (let k = 0; k < 40; k++) {
     const x = (rnd() * 2 - 1) * (MAP - 30), z = (rnd() * 2 - 1) * (MAP - 30);
@@ -6437,7 +6446,8 @@ const themeFlag = k => themeNow >= 0 && !!THEMES[themeNow][k],
 let ringBoostT = 0;
 const TORI = [];
 
-function buildTori() {
+function buildTori() { TORI.length || withSeed(777, buildToriBody); }
+function buildToriBody() {
   if (TORI.length) return;
   const rockM = new THREE.MeshStandardMaterial({
       color: 8023396,
@@ -6588,7 +6598,8 @@ function placeRock(r, far) {
   for (let k = 0; k < 20 && (r.x = rand(-MAP + 25, MAP - 25), r.z = rand(-MAP + 25, MAP - 25), r.y = isSpace() ? rand(ALT_MIN + 15, ALT_MAX - 15) : rand(14, 64), !(!far || Math.hypot(r.x - player.x, r.y - player.y, r.z - player.z) > 45 + r.r)); k++);
 }
 
-function setAsteroids(on) {
+function setAsteroids(on) { withSeed(4242, () => setAsteroidsBody(on)); }
+function setAsteroidsBody(on) {
   if (on && !ROCKS.length)
     for (let i = 0; i < 280; i++) {
       const big = Math.random() < .12,
@@ -6749,6 +6760,7 @@ function initDirector(n, toBoss) {
 }
 
 function directorLabel() {
+  if (netLabel) return netLabel;
   const L = "STAGE " + stage;
   return dirPhase === "wave" ? L + " \xB7 " + WAVES[wtype].name + " \xB7 " + WAVES[wtype].label() : dirPhase === "boss" || dirPhase === "bossPre" ? L + " \xB7 BOSS" : dirPhase === "intro" ? L + " \xB7 " + STAGES[stageIdx()].name : dirPhase === "waveClear" || dirPhase === "rest" ? L + " \xB7 WAVE " + wave + " CLEAR" : dirPhase === "stageClear" ? L + " CLEAR" : L
 }
@@ -7607,7 +7619,7 @@ function strikeBolt(b) {
   scene.add(g), b.mesh = g, HZ.flash = 1;
   const dh = Math.hypot(player.x - b.x, player.z - b.z);
   shockwave(b.x, clamp(player.y, 1, 60), b.z, 14, 12574975, .4), Sound.noise(.9, .4, 500), Sound.tone(55, 1, "sine", .3, 30), Sound.noise(.15, .25, 4e3), shake = Math.max(shake, dh < 40 ? .45 : .15), state === "playing" && dh < 7.5 && (damage(!1, null, "LIGHTNING"), popup(player.x, player.y + 2, player.z, "LIGHTNING!"));
-  for (const e of bots) !e.dead && !e.bomber && Math.hypot(e.x - b.x, e.z - b.z) < 7.5 && (popup(e.x, e.y + 3, e.z, "STRUCK!"), killBot(e))
+  if (state === "playing") for (const e of bots) !e.dead && !e.bomber && Math.hypot(e.x - b.x, e.z - b.z) < 7.5 && (popup(e.x, e.y + 3, e.z, "STRUCK!"), killBot(e))
 }
 const CP_BOSS = {
     1: "SKY FORTRESS",

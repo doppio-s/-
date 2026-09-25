@@ -304,6 +304,34 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #bossWarp .btn small{font-size:11px;opacity:.6}
 @media (max-height:460px){#bossWarp{width:160px;padding:8px;gap:5px}#bossWarp .btn{font-size:11px;padding:5px 8px}#bossWarp b{font-size:9px}}
 #title .titleWrap{max-width:calc(93vw - 200px)}
+.btn.violet{background:#8f7bff;color:#fff}
+body.gunner #reticle,body.gunner #leadPip{display:none !important}
+.netPanel{max-width:min(620px,94vw);max-height:calc(100dvh - 20px);overflow-y:auto}
+#netScreen.linked .netModes,#netScreen.linked .netRow,#netScreen.linked #netHelp{display:none}
+.netModes{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.netMode,.netSeat{display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;padding:12px 14px;border-radius:14px;border:2px solid #142c3e30;background:#fff;color:#142c3e;font-family:inherit;cursor:pointer}
+.netMode b,.netSeat b{font-size:17px;letter-spacing:.06em}.netMode small,.netSeat small{font-size:12px;opacity:.75}
+.netMode.sel,.netSeat.sel{border-color:#8f7bff;background:#f1eeff;box-shadow:0 0 0 3px #8f7bff55}
+.netSeat em{font-style:normal;font-size:11px;font-weight:900;letter-spacing:.12em;color:#8f7bff}
+.netRow{display:flex;gap:8px;width:100%}
+#netCode{flex:1;min-width:0;font:inherit;font-size:18px;font-weight:800;padding:10px 14px;border-radius:12px;border:2px solid #142c3e40;color:#142c3e;background:#fff}
+.netStatus{font-weight:800;font-size:14px;color:#142c3e;background:#142c3e12;border-radius:10px;padding:8px 12px;width:100%;text-align:center}
+.netStatus.ok{background:#2ed1a233;color:#0e6b52}.netStatus.err{background:#ff4d6d26;color:#b3183a}
+.netLobby{display:flex;flex-direction:column;gap:10px;width:100%;align-items:center}
+.netSeats{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.netVs{font-weight:800;font-size:14px;color:#142c3e}
+.duelScore{font-size:44px;font-weight:900;color:#142c3e}
+#duelBar{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:6;display:flex;gap:14px;align-items:center;background:#142c3ecc;color:#fff;border-radius:999px;padding:6px 18px;font-weight:900;letter-spacing:.06em;pointer-events:none}
+#duelBar #duelMe{color:#62f5ec}#duelBar #duelThem{color:#ff8a9c}#duelBar span{font-size:11px;opacity:.7}
+#duelThemHp{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;font-size:14px;color:#ff8a9c;white-space:nowrap}
+#netCount{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:8;pointer-events:none;font-size:120px;font-weight:900;color:#fff;text-shadow:0 6px 0 #142c3e,0 0 40px #8f7bff}
+#gunSight{position:fixed;left:50%;top:50%;z-index:5;pointer-events:none;transform:translate(-50%,-50%)}
+#gunSight i{display:block;width:46px;height:46px;border:3px solid #ff5a3a;border-radius:50%;box-shadow:0 0 12px #ff5a3a99}
+#gunSight i::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff}
+#gunSight b{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:6px;font-size:11px;letter-spacing:.2em;color:#ffb3a3;white-space:nowrap}
+#gunSight.fire i{border-color:#fff}
+#coopTag{position:fixed;right:max(16px,env(safe-area-inset-right));top:64px;z-index:5;background:#142c3ecc;color:#fff;font-weight:800;font-size:12px;letter-spacing:.1em;border-radius:8px;padding:5px 10px;pointer-events:none}
+@media (max-height:460px){.netPanel h2{font-size:22px}.netPanel{gap:6px;padding:12px 16px}.netMode,.netSeat{padding:8px 10px}.netMode b,.netSeat b{font-size:14px}#netCode{font-size:15px;padding:7px 10px}#netCount{font-size:80px}}
 #clearBadge{background:linear-gradient(90deg,#ffb13b,#ff5c8a,#7ff3ff);color:#fff;font-weight:900;letter-spacing:.14em;padding:6px 18px;border-radius:999px;box-shadow:0 0 22px #ffd24a99;text-shadow:0 2px 0 #142c3e;animation:clearGlow 1.6s ease-in-out infinite alternate}
 @keyframes clearGlow{from{box-shadow:0 0 12px #ffd24a66}to{box-shadow:0 0 30px #ffd24acc}}
 #over.cleared #overTitle{color:#ffd24a;text-shadow:0 3px 0 #142c3e,0 0 24px #ff7a2d}
@@ -621,6 +649,7 @@ included in this distribution. Its service terms apply separately.
     <div class="btnRow">
       <button id="btnGarage" class="btn green small2">GARAGE</button>
       <button id="btnDaily" class="btn pink small2">DAILY<span id="dailyBadge" class="badge" hidden>!</span></button>
+      <button id="btnLocal" class="btn violet small2">LOCAL PLAY</button>
     </div>
     <div class="bestTag"><span id="clearStar" class="hidden"></span> BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
     <div id="cpRow" class="cpRow hidden"><span class="eyebrow">CHECKPOINTS</span><button id="btnCp-1" class="btn cp hidden"></button><button id="btnCp-2" class="btn cp hidden"></button><button id="btnCp-3" class="btn cp hidden"></button><button id="btnCp-4" class="btn cp hidden"></button><button id="btnCp-5" class="btn cp hidden"></button></div>
@@ -689,6 +718,41 @@ included in this distribution. Its service terms apply separately.
 </div>
 
 <dialog id="purchaseDialog" aria-labelledby="purchaseTitle"><div class="eyebrow">WORKSHOP / PURCHASE</div><h2 id="purchaseTitle"></h2><p id="purchaseDetail"></p><p id="purchaseBalance"></p><div class="purchaseActions"><button id="cancelPurchase" class="btn small" autofocus>CANCEL</button><button id="confirmPurchase" class="btn">BUY</button></div></dialog>
+
+<div id="netScreen" class="screen dim hidden">
+  <div class="panel wide netPanel">
+    <div class="eyebrow">LOCAL PLAY &middot; PASSPHRASE LINK</div>
+    <h2>Fly together</h2>
+    <div class="netModes" id="netModes">
+      <button class="netMode sel" data-mode="duel"><b>DUEL</b><small>1 vs 1 &middot; first to 5 kills wins</small></button>
+      <button class="netMode" data-mode="coop"><b>STINGER CO-OP</b><small>2 seats, 1 plane &middot; FRONT flies, REAR mans the tail gun</small></button>
+    </div>
+    <div class="netRow"><input id="netCode" maxlength="24" autocomplete="off" spellcheck="false" placeholder="PASSPHRASE (e.g. sora)"><button id="btnNetGo" class="btn green">CONNECT</button></div>
+    <p class="note" id="netHelp">Both players choose the same mode, type the same passphrase and press CONNECT.</p>
+    <div id="netStatus" class="netStatus">Not connected</div>
+    <div id="netLobby" class="netLobby hidden">
+      <div id="netSeats" class="netSeats">
+        <button class="netSeat" data-seat="front"><b>FRONT</b><small>PILOT &middot; flies and fires forward</small><em></em></button>
+        <button class="netSeat" data-seat="rear"><b>REAR</b><small>GUNNER &middot; aims the tail gun</small><em></em></button>
+      </div>
+      <div id="netVs" class="netVs"></div>
+      <button id="btnNetStart" class="btn pink">START</button>
+    </div>
+    <div class="btnRow"><button id="btnNetBack" class="btn small">BACK</button></div>
+  </div>
+</div>
+<div id="duelEnd" class="screen dim hidden">
+  <div class="panel netPanel">
+    <div class="eyebrow">DUEL</div>
+    <h2 id="duelEndTitle">YOU WIN</h2>
+    <div id="duelEndScore" class="duelScore">5 - 0</div>
+    <div class="btnRow"><button id="btnDuelExit" class="btn small">EXIT</button><button id="btnDuelAgain" class="btn green">BACK TO LOBBY</button></div>
+  </div>
+</div>
+<div id="duelBar" class="hidden"><b id="duelMe">YOU 0</b><span id="duelMid">FIRST TO 5</span><b id="duelThem">0 RIVAL</b><div id="duelThemHp"></div></div>
+<div id="netCount" class="hidden"></div>
+<div id="gunSight" class="hidden"><i></i><b>REAR GUN</b></div>
+<div id="coopTag" class="hidden"></div>
 
 <div id="daily" class="screen dim hidden">
   <div class="panel wide">
