@@ -7,6 +7,7 @@ three.js is tree-shaken to the classes the game uses, and the game code is white
 """
 import re
 import subprocess
+import zipfile
 from pathlib import Path
 
 root = Path(__file__).parent
@@ -53,8 +54,16 @@ def public(text):
 # ace-duel test build: every PLAY starts at stage 3's boss, FALCON ZERO
 hook = "{ const hw = { '#fortress': 1, '#titan': 2, '#ace': 3, '#carrier': 4 }[location.hash];"
 assert hook in source
+def cg_source(src):
+    assert src.count('/*@@PEERLIB@@*/') == 1, 'PEERLIB placeholder'
+    return src.replace('/*@@PEERLIB@@*/', '"peerjs.min.js", ')
+
+
+public_page = public(page).replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io</title>', 1)
 builds = {
-    'flight-io.html': (public(source), public(page).replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io</title>', 1)),
+    'flight-io.html': (public(source), public_page),
+    # CrazyGames upload: the public build, loading PeerJS from its own file in the package
+    'crazygames/index.html': (cg_source(public(source)), public_page),
     'flight-test.html': (source, page),
     'flight-ace-test.html': (source.replace(hook, '{ const hw = 3;', 1),
                              page.replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io TEST · ACE DUEL</title>', 1)
@@ -70,9 +79,21 @@ for out, (src, html) in builds.items():
     size = len(text.encode())
     if size >= LIMIT:
         raise SystemExit(f'{out}: {size} bytes, over the {LIMIT} byte limit')
-    if out == 'flight-io.html':
+    if out in ('flight-io.html', 'crazygames/index.html'):
         for bad in ('TEST{', '}TEST', 'pptest_', 'TEST BUILD', 'bossWarp', '__dbg', 'coins,99999', 'coins, 99999', 'all unlocked'):
             if bad in game or bad in html:   # the game and the page (three.js has its own 0.99999s)
                 raise SystemExit(f'{out}: test-only code left in the public build: {bad!r}')
+    (root / out).parent.mkdir(exist_ok=True)
     (root / out).write_text(text)
     print('wrote', out, size, 'bytes')
+
+# the CrazyGames package: index.html + PeerJS + third-party licences, zipped for the developer portal
+cg = root / 'crazygames'
+(cg / 'peerjs.min.js').write_bytes((root / 'vendor/peerjs.min.js').read_bytes())
+(cg / 'THIRD-PARTY-LICENSES.txt').write_text(
+    'three.js r170 (bundled into index.html)\n' + (root / 'vendor/THREE-LICENSE').read_text() +
+    '\n\nPeerJS 1.5.4 (peerjs.min.js)\n' + (root / 'vendor/PEERJS-LICENSE').read_text())
+with zipfile.ZipFile(cg / 'flight-io-crazygames.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+    for name in ('index.html', 'peerjs.min.js', 'THIRD-PARTY-LICENSES.txt'):
+        z.write(cg / name, name)
+print('wrote crazygames/flight-io-crazygames.zip', (cg / 'flight-io-crazygames.zip').stat().st_size, 'bytes')

@@ -13,7 +13,8 @@ const Net = {
   seat: "front", partner: null, lastRx: 0, pingT: 0, savedPlane: null,
   send(o) { const c = this.conn; if (c && c.open) try { c.send(o); } catch (e) {} },
 };
-const NET_LIBS = ["https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js", "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js", "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"];
+// the CrazyGames package ships its own copy next to index.html (build.py fills in the PEERLIB placeholder)
+const NET_LIBS = [/*@@PEERLIB@@*/"https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js", "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js", "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"];
 function loadPeerLib() {
   if (window.Peer) return Promise.resolve();
   const srcs = window.__peerSrc ? [window.__peerSrc] : NET_LIBS;

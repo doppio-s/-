@@ -20,7 +20,12 @@ const CG = {
       try {
         if (window.CrazyGames && window.CrazyGames.SDK) {
           const sdk = window.CrazyGames.SDK;
-          await Promise.race([sdk.init(), new Promise((_, rej) => setTimeout(() => rej(new Error("SDK init timeout")), 5e3))]), this.sdk = sdk, this.env = sdk.environment || "none"
+          await Promise.race([sdk.init(), new Promise((_, rej) => setTimeout(() => rej(new Error("SDK init timeout")), 5e3))]), this.sdk = sdk, this.env = sdk.environment || "none";
+          try {   // follow the platform's audio setting, now and whenever it changes
+            const g = sdk.game;
+            g && g.settings && Sound.setPlatformMute(!!g.settings.muteAudio);
+            g && g.addSettingsChangeListener && g.addSettingsChangeListener(st => Sound.setPlatformMute(!!(st && st.muteAudio)));
+          } catch (e) {}
         }
       } catch (e) {
         console.warn("[CG] init failed", e), this.sdk = null, this.env = "none"
@@ -138,11 +143,14 @@ const CG = {
     },
     apply() {
       if (!this.master) return;
-      const v = this.muted || this.adMuted ? 0 : .7;
+      const v = this.muted || this.adMuted || this.platformMuted ? 0 : .7;
       this.master.gain.cancelScheduledValues(this.ctx.currentTime), this.master.gain.setValueAtTime(v, this.ctx.currentTime)
     },
     setMuted(m) {
       this.muted = m, this.apply(), updateMuteBtn(), Store.set("muted", m ? "1" : "0")
+    },
+    setPlatformMute(m) {   // the CrazyGames "mute audio" setting
+      this.platformMuted = m, this.apply()
     },
     setAdMute(m) {
       this.adMuted = m, this.apply(), this.ctx && (m ? this.ctx.suspend().catch(() => {}) : this.resume())
@@ -3701,7 +3709,7 @@ onBtn("btnPlay", () => {
   busy = !1, state === "over" && (r === "ok" || r === "noads" ? (lastAdTime = Date.now(), revive()) : ($("btnRevive").innerHTML = '<span class="adTag">AD</span>CONTINUE', setOverButtons(!0), toast("No ad available right now. Try again later!")))
 }), onBtn("btnAgain", async () => {
   if (netGame) { state === "over" && (Sound.sfxClick(), netBackToLobby()); return }
-  state !== "over" || busy || (Sound.sfxClick(), !(CG.active && Date.now() - lastAdTime > 12e4 && (busy = !0, setOverButtons(!1), lastAdTime = Date.now(), await CG.ad("midgame"), busy = !1, state !== "over")) && startRun())
+  state !== "over" || busy || (Sound.sfxClick(), !(CG.active && Date.now() - lastAdTime > 18e4 && (busy = !0, setOverButtons(!1), lastAdTime = Date.now(), await CG.ad("midgame"), busy = !1, state !== "over")) && startRun())
 });
 let pendingPurchase = null;
 
