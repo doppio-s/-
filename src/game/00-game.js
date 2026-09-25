@@ -2179,6 +2179,7 @@ function fire(from, isEnemy, aimAt) {
       life: isEnemy ? 1.9 : 1.1,
       enemy: isEnemy,
       src: isEnemy ? srcName(from) : null,
+      dmg: isEnemy ? from.dmg || 1 : void 0,
       profile: shotProfile(from, isEnemy)
     })
   }
@@ -2421,11 +2422,13 @@ function resumeGame() {
 
 // hearts are fixed at 3; armor adds hits to them. player.hp counts every remaining hit
 const HEARTS = 3, TURN_BASE = 1.9;
+// enemy attack power in hits (1 hit = 1 armor pip, or a heart with no armor left in it); anything not listed does 1
+const ENEMY_DMG = { missile: 3, flak: 2 };
 function heartCaps() { const A = maxHp() - HEARTS, b = Math.floor(A / HEARTS), x = A % HEARTS; return Array.from({ length: HEARTS }, (_, i) => 1 + b + (i < x ? 1 : 0)); }
 function heartBase(hp = player.hp) { let c = 0; for (const cap of heartCaps()) { if (hp <= c + cap) return c; c += cap; } return c; }   // hits left below the current heart
 function heartTop(hp = player.hp) { let c = 0; for (const cap of heartCaps()) { c += cap; if (hp < c) return c; } return c; }    // current heart topped up
 const heartsLeft = () => { let c = 0, n = 0; for (const cap of heartCaps()) { if (player.hp > c) n++; c += cap; } return n; };
-function damage(whole, why, src) {
+function damage(whole, why, src, amt = 1) {
   if (player.invul > 0 || state !== "playing" || rollTime > 0) return;
   if (shieldTime > 0) {
     for (let i = 0; i < 10; i++) addPart(player.x, player.y, player.z, rand(-8, 8), rand(-8, 8), rand(-8, 8), .3, .45, 8385535, .4);
@@ -2433,7 +2436,7 @@ function damage(whole, why, src) {
     return
   }
   const h0 = player.hp, n0 = heartsLeft();
-  whole ? (player.hp = heartBase(), shake = .6, popup(player.x, player.y + 3, player.z, (why ? why + " " : "") + "-1 \u2665", !0)) : player.hp--, player.invul = 1.6, shake = Math.max(shake, .35);
+  whole ? (player.hp = heartBase(), shake = .6, popup(player.x, player.y + 3, player.z, (why ? why + " " : "") + "-1 \u2665", !0)) : player.hp = Math.max(0, player.hp - amt), player.invul = 1.6, shake = Math.max(shake, amt > 1 ? .5 : .35);
   logHit(why || src || "HIT", h0 - player.hp, n0 - heartsLeft());
   const fl = $("dmgFlash");
   fl.classList.remove("hit"), fl.offsetWidth, fl.classList.add("hit"), Sound.sfxHit(), explode(player.x, player.y, player.z, .4), hitStop(.12, .3), updateHud(!0), player.hp <= 0 && crash()
@@ -2443,7 +2446,7 @@ function damage(whole, why, src) {
 const hitLogRows = [];
 function logHit(what, hits, hearts) {
   const el = document.createElement("div");
-  el.innerHTML = `<b>${hearts ? "-" + hearts + " \u2665" : "-" + hits + " ARMOR"}</b> ${String(what).replace(/[!]+$/, "")}<small>${player.hp}/${maxHp()}</small>`;
+  el.innerHTML = `<b>${hearts ? (hits > 1 ? "-" + hits + " \xB7 " : "") + "-" + hearts + " \u2665" : "-" + hits + " ARMOR"}</b> ${String(what).replace(/[!]+$/, "")}<small>${player.hp}/${maxHp()}</small>`;
   hearts && el.classList.add("heart");
   $("hitLog").prepend(el), hitLogRows.unshift({ el, t: performance.now() });
   for (; hitLogRows.length > 5;) hitLogRows.pop().el.remove();
@@ -2910,7 +2913,8 @@ function updateTurrets(dt) {
         z: t.z,
         a: 0,
         p: 0,
-        src: t.carrier ? "LEVIATHAN GUN" : "AA GUN"
+        src: t.carrier ? "LEVIATHAN GUN" : "AA GUN",
+        dmg: t.carrier ? 1 : ENEMY_DMG.flak
       }, !0, aim), Sound.sfxEnemyShoot(), t.cd = rand(1.8, 2.8) / Math.min(1.8, 1 + lvT / 150)
     }
   }
@@ -2960,7 +2964,7 @@ function updateMissiles(dt) {
         continue
       }
       if (state === "playing" && dist3(m, player) < 2.4) {
-        explode(m.x, m.y, m.z, .8), removeMissile(m), damage(!1, null, m.src || "MISSILE");
+        explode(m.x, m.y, m.z, .8), removeMissile(m), damage(!1, null, m.src || "MISSILE", ENEMY_DMG.missile);
         continue
       }
     } else {
@@ -3018,7 +3022,7 @@ function update(dt) {
   }
   if (state === "playing" || state === "dying" || state === "over") {
     for (const b of bullets)
-      if (b.x += b.vx * dt, b.y += b.vy * dt, b.z += b.vz * dt, b.life -= dt, b.y < floorY() + .3 && (b.life = 0), b.enemy) state === "playing" && dist3(b, player) < (b.r || 1.9) + (shieldTime > 0 ? 1.4 : 0) && (shieldTime > 0 ? (b.enemy = !1, b.refl = 1, b.vx *= -1.3, b.vy *= -1.3, b.vz *= -1.3, b.life = 1.4, Sound.tone(1500, .05, "triangle", .05, 2200)) : (b.life = 0, damage(!1, null, b.src || "BULLET")));
+      if (b.x += b.vx * dt, b.y += b.vy * dt, b.z += b.vz * dt, b.life -= dt, b.y < floorY() + .3 && (b.life = 0), b.enemy) state === "playing" && dist3(b, player) < (b.r || 1.9) + (shieldTime > 0 ? 1.4 : 0) && (shieldTime > 0 ? (b.enemy = !1, b.refl = 1, b.vx *= -1.3, b.vy *= -1.3, b.vz *= -1.3, b.life = 1.4, Sound.tone(1500, .05, "triangle", .05, 2200)) : (b.life = 0, damage(!1, null, b.src || "BULLET", b.dmg || 1)));
       else {
         for (const bot of bots)
           if (!bot.dead && dist3(b, bot) < 2.5 * bot.scale) {
