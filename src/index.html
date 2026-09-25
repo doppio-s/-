@@ -305,7 +305,7 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 @media (max-height:460px){#bossWarp{width:160px;padding:8px;gap:5px}#bossWarp .btn{font-size:11px;padding:5px 8px}#bossWarp b{font-size:9px}}
 #title .titleWrap{max-width:calc(93vw - 200px)}
 .btn.violet{background:#8f7bff;color:#fff}
-body.gunner #reticle,body.gunner #leadPip{display:none !important}
+body.gunner #reticle,body.gunner #leadPip,body.gunner #steerPad{display:none !important}
 .netPanel{max-width:min(620px,94vw);max-height:calc(100dvh - 20px);overflow-y:auto}
 #netScreen.linked .netModes,#netScreen.linked .netRow,#netScreen.linked #netHelp{display:none}
 .netModes{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
@@ -326,6 +326,7 @@ body.gunner #reticle,body.gunner #leadPip{display:none !important}
 #duelThemHp{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;font-size:14px;color:#ff8a9c;white-space:nowrap}
 #netCount{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:8;pointer-events:none;font-size:120px;font-weight:900;color:#fff;text-shadow:0 6px 0 #142c3e,0 0 40px #8f7bff}
 #gunSight{position:fixed;left:50%;top:50%;z-index:5;pointer-events:none;transform:translate(-50%,-50%)}
+body.gunner #c{cursor:none}
 #gunSight i{display:block;width:46px;height:46px;border:3px solid #ff5a3a;border-radius:50%;box-shadow:0 0 12px #ff5a3a99}
 #gunSight i::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff}
 #gunSight b{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:6px;font-size:11px;letter-spacing:.2em;color:#ffb3a3;white-space:nowrap}
@@ -725,7 +726,7 @@ included in this distribution. Its service terms apply separately.
     <h2>Fly together</h2>
     <div class="netModes" id="netModes">
       <button class="netMode sel" data-mode="duel"><b>DUEL</b><small>1 vs 1 &middot; first to 5 kills wins</small></button>
-      <button class="netMode" data-mode="coop"><b>STINGER CO-OP</b><small>2 seats, 1 plane &middot; FRONT flies, REAR mans the tail gun</small></button>
+      <button class="netMode" data-mode="coop"><b>STINGER CO-OP</b><small>2 seats, 1 plane &middot; FRONT flies, REAR mans a free-swinging turret</small></button>
     </div>
     <div class="netRow"><input id="netCode" maxlength="24" autocomplete="off" spellcheck="false" placeholder="PASSPHRASE (e.g. sora)"><button id="btnNetGo" class="btn green">CONNECT</button></div>
     <p class="note" id="netHelp">Both players choose the same mode, type the same passphrase and press CONNECT.</p>
@@ -733,7 +734,7 @@ included in this distribution. Its service terms apply separately.
     <div id="netLobby" class="netLobby hidden">
       <div id="netSeats" class="netSeats">
         <button class="netSeat" data-seat="front"><b>FRONT</b><small>PILOT &middot; flies and fires forward</small><em></em></button>
-        <button class="netSeat" data-seat="rear"><b>REAR</b><small>GUNNER &middot; aims the tail gun</small><em></em></button>
+        <button class="netSeat" data-seat="rear"><b>REAR</b><small>GUNNER &middot; swings a free turret all the way round</small><em></em></button>
       </div>
       <div id="netVs" class="netVs"></div>
       <button id="btnNetStart" class="btn pink">START</button>

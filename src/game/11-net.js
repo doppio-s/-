@@ -3,7 +3,7 @@
 // claims the room on the free PeerJS broker, the second joins it; after that all game data
 // flows directly between the two devices. The PeerJS library is fetched from a CDN only when
 // LOCAL PLAY is actually used, so solo play stays fully offline.
-const NET_VER = 1;
+const NET_VER = 2;   // bump whenever the messages change: mismatched copies refuse to link
 let netGame = null,     // null | "duel" | "coop" while a network match is running
   netHold = false,      // pause menu open during a network match (the game keeps running)
   netHpMax = 0,         // co-op REAR: the pilot's max hits, shown on this device's HUD

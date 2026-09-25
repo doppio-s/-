@@ -1,11 +1,13 @@
 // ================= STINGER CO-OP: FRONT pilot + REAR gunner =================
 // The FRONT device runs the real game in a STINGER and streams a compact snapshot of the world
-// 15x a second. The REAR device draws that world from the gunner's seat, aims the tail gun
-// freely and sends each shot to FRONT, where it becomes a real bullet that can hit things.
+// 15x a second. The REAR device draws that world from a gun turret on top of the STINGER: the
+// turret swings freely all the way round (world-stabilized, so the pilot's turns don't throw the
+// aim off), and each shot goes to FRONT, where it becomes a real bullet that can hit things.
 const COOP_HZ = 15, PROF = ["ballistic", "cannon", "rotary", "laser", "ion", "plasma", "bio", "grav", "orb", "fire", "beam", "balanced"];
 const coop = {
   seat: null, sendT: 0, n: 0, nid: 0, looks: new Set(), fx: [], ev: [], gunBul: new Map(), hm: 0,
-  aim: { y: 0, p: 0 }, fireCd: 0, snapA: null, snapB: null, atA: 0, atB: 0,
+  view: { y: 0, p: 0 }, gun: { y: 0, p: 0 }, viewInit: false, tx: null, ty: null, sight: null, aimT: 0, remote: null, turret: null,
+  fireCd: 0, snapA: null, snapB: null, atA: 0, atB: 0,
   mb: new Map(), mm: new Map(), mp: new Map(), mt: new Map(), mboss: null, bb: "", theme: -1, dn: false,
 };
 const cid = o => o.nid || (o.nid = ++coop.nid);
@@ -15,6 +17,7 @@ const bossKind = B => B.serpent ? "serpent" : B.titan ? "titan" : B.ace ? "ace" 
 function startCoop(seat) {
   coop.seat = seat;
   Net.savedPlane = garage.plane; garage.plane = "viper"; applyLook();   // both seats share one STINGER
+  coop.turret && scene.remove(coop.turret); coop.turret = makeGunTurret(); scene.add(coop.turret); coop.remote = null;
   if (seat === "front") {
     const warp = window.__warpStage; window.__warpStage = 0;
     try { startRun(); } finally { window.__warpStage = warp; }
@@ -25,6 +28,7 @@ function startCoop(seat) {
 }
 function coopEnd() {
   coopClearMirror();
+  coop.turret && (scene.remove(coop.turret), coop.turret = null);
   document.body.classList.remove("gunner");
   if (Net.savedPlane) { garage.plane = Net.savedPlane; Net.savedPlane = null; applyLook(); }
   coop.seat = null;
@@ -76,23 +80,55 @@ function coopSnap() {
   bb !== coop.bb && (coop.bb = bb, s.bb = bb);
   Net.send(s);
 }
-// the gunner's shot: two real bullets out of the tail, in the gunner's aim
+// ---------- the turret on the STINGER's back ----------
+const _gv = new THREE.Vector3(), _gp = new THREE.Vector3();
+const gunDir = (y, p) => [Math.cos(y) * Math.cos(p), Math.sin(p), Math.sin(y) * Math.cos(p)];
+function makeGunTurret() {
+  const g = new THREE.Group(), yawG = new THREE.Group(), pitchG = new THREE.Group(), dark = M(0x1a1c24), hull = M(0x3a3f4a, { metalness: .6, roughness: .35 });
+  part(G.cyl, hull, .5, .2, .5, 0, 0, 0, g);
+  g.add(yawG); part(G.sph, hull, .42, .34, .42, 0, .16, 0, yawG);
+  pitchG.position.y = .26; yawG.add(pitchG);
+  part(G.box, M(0xff5a3a, { emissive: 0x661400, emissiveIntensity: 1.2 }), .5, .16, .46, .05, 0, 0, pitchG);
+  for (const sd of [-.13, .13]) { const b = part(G.cyl, dark, .055, 1.5, .055, .85, 0, sd, pitchG); b.rotation.z = Math.PI / 2; }
+  const flash = new THREE.Mesh(G.sph, new THREE.MeshBasicMaterial({ color: 0xffd28a, transparent: true, opacity: 0, depthWrite: false }));
+  flash.position.x = 1.7; flash.scale.setScalar(.35); pitchG.add(flash);
+  g.userData = { yawG, pitchG, flash };
+  g.scale.setScalar(1.4);
+  return g;
+}
+// the mount point: on top of the pod, just behind the canopy (follows the plane's roll and pitch)
+function turretPivot(out) {
+  player.mesh.updateMatrixWorld(true);
+  return player.mesh.userData.body.localToWorld(out.set(-.3, .86, 0));
+}
+function placeTurret(y, p, dt) {
+  const T = coop.turret; if (!T) return;
+  T.visible = player.mesh.visible;
+  turretPivot(T.position);
+  T.userData.yawG.rotation.y = -y; T.userData.pitchG.rotation.z = p;
+  const f = T.userData.flash.material; f.opacity = Math.max(0, f.opacity - dt * 9);
+}
+const muzzleOf = (dir) => turretPivot(_gp).add(_gv.set(dir[0], dir[1], dir[2]).multiplyScalar(2.4));
+// the gunner's shot: two real bullets from the turret, in the gunner's (world) aim
 function coopGunnerFire(d) {
+  coop.remote = { y: d.y, p: d.p };
   if (state !== "playing" || !player.alive) return;
-  const dir = coopAimDir(player, d.y, d.p), f = fwdOf(player), v = playerSpeed(), spd = 80;
-  for (const sd of [-.8, .8]) {
+  const dir = gunDir(d.y, d.p), f = fwdOf(player), v = playerSpeed(), spd = 80, m = muzzleOf(dir), sx = -dir[2], sz = dir[0];
+  for (const sd of [-.25, .25]) {
     if (bullets.length >= MAXB) break;
-    const b = { x: player.x - f[0] * 3 - Math.sin(player.a) * sd, y: player.y - f[1] * 3 + .4, z: player.z - f[2] * 3 + Math.cos(player.a) * sd,
-      vx: dir[0] * spd + f[0] * v, vy: dir[1] * spd + f[1] * v, vz: dir[2] * spd + f[2] * v, life: 1.2, enemy: !1, gun: !0, profile: "laser" };
+    const b = { x: m.x + sx * sd, y: m.y, z: m.z + sz * sd, vx: dir[0] * spd + f[0] * v, vy: dir[1] * spd + f[1] * v, vz: dir[2] * spd + f[2] * v, life: 1.2, enemy: !1, gun: !0, profile: "laser" };
     bullets.push(b); coop.gunBul.set(b, b.life);
   }
+  coop.turret && (coop.turret.userData.flash.material.opacity = 1);
   Sound.tone(700, .04, "square", .03, 380);
 }
-const coopAimDir = (P, ay, ap) => { const yw = P.a + Math.PI + ay, pt = clamp(-(P.p || 0) + ap, -1.4, 1.4); return [Math.cos(yw) * Math.cos(pt), Math.sin(pt), Math.sin(yw) * Math.cos(pt)]; };
 function updateCoopPilot(dt) {
   // gunner bullets that vanished early hit something: tell the gunner (hit marker)
   for (const [b, life] of coop.gunBul) if (!bullets.includes(b)) { life > .08 && coop.hm++; coop.gunBul.delete(b); } else coop.gunBul.set(b, b.life);
   if (state !== "over" && (coop.sendT -= dt) <= 0) { coop.sendT = 1 / COOP_HZ; coopSnap(); }
+  // the gunner's turret swings where the gunner aims (straight back until they touch it)
+  const R = coop.remote || { y: player.a + Math.PI, p: .08 };
+  placeTurret(R.y, R.p, dt);
 }
 
 // ---------- REAR: draw the pilot's world ----------
@@ -100,13 +136,19 @@ function startCoopGunner() {
   clearWorld(); clearInput(); resetSpecial();
   netGame = "coop"; state = "mirror"; netHpMax = 0;
   coopClearMirror();
-  Object.assign(coop, { aim: { y: 0, p: .1 }, fireCd: 0, snapA: null, snapB: null, theme: -1, dn: false, bb: "" });
+  Object.assign(coop, { view: { y: 0, p: .08 }, gun: { y: 0, p: .08 }, viewInit: false, tx: null, ty: null, sight: null, aimT: 0, fireCd: 0, snapA: null, snapB: null, theme: -1, dn: false, bb: "" });
   Object.assign(player, { x: 0, y: ALT, z: 0, a: -Math.PI / 2, p: 0, roll: 0, rollFx: 0, alive: true, invul: 0 });
   player.mesh.visible = true;
   showOnly(null); setHud(true);
   for (const id of ["weaponBtns", "btnSpecial", "btnAds", "thrBtns", "flt"]) $(id) && $(id).classList.add("hidden");
   document.body.classList.add("gunner"); $("gunSight").classList.remove("hidden");
-  $("hint").innerHTML = IS_TOUCH ? "REAR GUNNER &middot; DRAG to aim &middot; FIRE to shoot" : "REAR GUNNER &middot; Mouse / WASD to aim &middot; CLICK / SPACE to shoot";
+  // the crescent wing arches right past the gunner's eyes: see-through on this device only (own material copy)
+  player.mesh.traverse(o => {
+    if (o.isMesh && o.geometry && o.geometry.type === "TorusGeometry" && o.geometry.parameters.radius > 1.5) {
+      o.material = o.material.clone(); o.material.transparent = !0; o.material.opacity = .16; o.material.depthWrite = !1; o.castShadow = !1;
+    }
+  });
+  $("hint").innerHTML = IS_TOUCH ? "REAR GUNNER &middot; DRAG to swing the gun &middot; FIRE to shoot" : "REAR GUNNER &middot; the gun follows your MOUSE &middot; screen edges turn round &middot; CLICK / SPACE to shoot";
   $("hint").classList.remove("hidden"); setTimeout(() => state === "mirror" && $("hint").classList.add("hidden"), 5000);
   CG.gameplayStart(); snapCamera();
 }
@@ -126,7 +168,7 @@ function coopDropBoss() {
   coop.mboss = null; boss = null;
 }
 function coopOnData(d) {
-  if (coop.seat === "front") { d.t === "gf" && coopGunnerFire(d); return; }
+  if (coop.seat === "front") { d.t === "gf" ? coopGunnerFire(d) : d.t === "ga" && (coop.remote = { y: d.y, p: d.p }); return; }
   if (d.t === "over") { state === "mirror" && coopMirrorOver(d); return; }
   if (d.t !== "s" || state !== "mirror") return;   // after the run ends, stray snapshots are ignored
   // world setting
@@ -234,10 +276,6 @@ function coopMirrorOver(d) {
 }
 function updateCoopGunner(dt) {
   if (state !== "mirror") return;
-  // aim with the usual steering inputs (mouse, touch stick, keys)
-  readSteer();
-  coop.aim.y = clamp(coop.aim.y + steerNow * 2.4 * dt, -1.9, 1.9);
-  coop.aim.p = clamp(coop.aim.p + climbNow * 1.6 * dt, -.9, .9);
   // interpolate from the previous snapshot toward the latest one
   const A = coop.snapA, B = coop.snapB;
   if (B) {
@@ -264,18 +302,21 @@ function updateCoopGunner(dt) {
   }
   orientPlane(player, dt);
   player.mesh.visible = player.alive;
+  coopGunnerAim(dt);
   // bullets and missiles keep flying between snapshots
   for (const b of bullets) b.x += b.vx * dt, b.y += b.vy * dt, b.z += b.vz * dt, b.life -= dt;
   bullets = bullets.filter(b => b.life > 0);
   for (const m of missiles) m.x += m.vx * dt, m.y += m.vy * dt, m.z += m.vz * dt;
-  // the tail gun
+  // the turret gun
   coop.fireCd -= dt;
   if (firing() && coop.fireCd <= 0 && player.alive) {
     coop.fireCd = .12;
-    Net.send({ t: "gf", y: r3(coop.aim.y), p: r3(coop.aim.p) });
-    const dir = coopAimDir(player, coop.aim.y, coop.aim.p), f = fwdOf(player), v = playerSpeed(), spd = 80;
-    for (const sd of [-.8, .8]) bullets.length < MAXB && bullets.push({ x: player.x - f[0] * 3 - Math.sin(player.a) * sd, y: player.y - f[1] * 3 + .4, z: player.z - f[2] * 3 + Math.cos(player.a) * sd,
+    const G2 = coop.gun;
+    Net.send({ t: "gf", y: r3(G2.y), p: r3(G2.p) });
+    const dir = gunDir(G2.y, G2.p), f = fwdOf(player), v = playerSpeed(), spd = 80, m = muzzleOf(dir), sx = -dir[2], sz = dir[0];
+    for (const sd of [-.25, .25]) bullets.length < MAXB && bullets.push({ x: m.x + sx * sd, y: m.y, z: m.z + sz * sd,
       vx: dir[0] * spd + f[0] * v, vy: dir[1] * spd + f[1] * v, vz: dir[2] * spd + f[2] * v, life: 1.2, enemy: !1, ghost: !0, profile: "laser" });
+    coop.turret && (coop.turret.userData.flash.material.opacity = 1);
     Sound.shot ? Sound.shot("laser", !1) : Sound.sfxShoot();
   }
   updateHud(false);
@@ -283,11 +324,42 @@ function updateCoopGunner(dt) {
   $("survivalClock").textContent !== clock && ($("survivalClock").textContent = clock);
   $("threatLabel").textContent !== netLabel && ($("threatLabel").textContent = netLabel);
 }
-// the gunner's camera: in the rear seat, looking where the tail gun points
+// aiming: the MOUSE points the gun straight at the cursor (edges of the screen swing the view round),
+// a finger DRAG swings gun and view together, keys turn them. Angles are world angles: 360 degrees.
+function coopGunnerAim(dt) {
+  const V = coop.view, G2 = coop.gun;
+  if (!coop.viewInit && coop.snapB) { coop.viewInit = true; V.y = G2.y = player.a + Math.PI; V.p = G2.p = .08; }
+  const kx = (input.right ? 1 : 0) - (input.left ? 1 : 0), ky = (input.up ? 1 : 0) - (input.down ? 1 : 0);
+  V.y += kx * 1.9 * dt; V.p += ky * 1.3 * dt;
+  if (input.touchId !== null && input.pointerMode === "touch") {
+    if (coop.tx !== null) { V.y += (input.touchX - coop.tx) * .006; V.p -= (input.touchY - coop.ty) * .006; }
+    coop.tx = input.touchX; coop.ty = input.touchY;
+  } else coop.tx = coop.ty = null;
+  const mouse = input.mouseActive && input.pointerMode !== "touch";
+  if (mouse) {
+    const W = innerWidth, H = innerHeight, nx = clamp(input.mouseX / W * 2 - 1, -1, 1), ny = clamp(1 - input.mouseY / H * 2, -1, 1);
+    const ex = Math.sign(nx) * Math.max(0, Math.abs(nx) - .62) / .38, ey = Math.sign(ny) * Math.max(0, Math.abs(ny) - .62) / .38;
+    V.y += ex * Math.abs(ex) * 2.6 * dt; V.p += ey * Math.abs(ey) * 1.6 * dt;
+  }
+  V.y = wrapA(V.y); V.p = clamp(V.p, -1.25, 1.25);
+  if (mouse) {
+    camera.updateMatrixWorld();
+    _gv.set(clamp(input.mouseX / innerWidth * 2 - 1, -1, 1), clamp(1 - input.mouseY / innerHeight * 2, -1, 1), .5).unproject(camera).sub(camera.position).normalize();
+    G2.y = Math.atan2(_gv.z, _gv.x); G2.p = Math.asin(clamp(_gv.y, -1, 1));
+    coop.sight = [input.mouseX, input.mouseY];
+  } else { G2.y = V.y; G2.p = V.p; coop.sight = null; }
+  placeTurret(G2.y, G2.p, dt);
+  const gs = $("gunSight").style, sx = coop.sight ? coop.sight[0] + "px" : "50%", sy = coop.sight ? coop.sight[1] + "px" : "50%";
+  gs.left !== sx && (gs.left = sx); gs.top !== sy && (gs.top = sy);
+  // let the pilot's device swing the turret too
+  if ((coop.aimT -= dt) <= 0) { coop.aimT = .08; Net.send({ t: "ga", y: r3(G2.y), p: r3(G2.p) }); }
+}
+// the gunner's camera: just behind the turret, looking along the view direction
 function coopGunnerCamera(dt) {
-  const d = coopAimDir(player, coop.aim.y, coop.aim.p), f = fwdOf(player);
-  camA = Math.atan2(d[2], d[0]); camP = Math.asin(clamp(d[1], -1, 1));
-  camPos.set(player.x - f[0] * 1.6, player.y + 1.9, player.z - f[2] * 1.6);
+  const d = gunDir(coop.view.y, coop.view.p);
+  turretPivot(_gp);
+  camA = coop.view.y; camP = coop.view.p;
+  camPos.set(_gp.x - d[0] * 2.7, _gp.y - d[1] * 2.7 + 1.9, _gp.z - d[2] * 2.7);
   camLook.set(camPos.x + d[0] * 40, camPos.y + d[1] * 40, camPos.z + d[2] * 40);
   Math.abs(camera.fov - baseFov) > .05 && (camera.fov = baseFov, camera.updateProjectionMatrix());
   camera.position.copy(camPos); shake > 0 && camera.position.add(_v.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(shake * .6));
