@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "scripts": { "build": "python3 build.py" },
+  "devDependencies": { "esbuild": "0.24.0" }
+}
