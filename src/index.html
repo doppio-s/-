@@ -304,6 +304,10 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #bossWarp .btn small{font-size:11px;opacity:.6}
 @media (max-height:460px){#bossWarp{width:160px;padding:8px;gap:5px}#bossWarp .btn{font-size:11px;padding:5px 8px}#bossWarp b{font-size:9px}}
 #title .titleWrap{max-width:calc(93vw - 200px)}
+#clearBadge{background:linear-gradient(90deg,#ffb13b,#ff5c8a,#7ff3ff);color:#fff;font-weight:900;letter-spacing:.14em;padding:6px 18px;border-radius:999px;box-shadow:0 0 22px #ffd24a99;text-shadow:0 2px 0 #142c3e;animation:clearGlow 1.6s ease-in-out infinite alternate}
+@keyframes clearGlow{from{box-shadow:0 0 12px #ffd24a66}to{box-shadow:0 0 30px #ffd24acc}}
+#over.cleared #overTitle{color:#ffd24a;text-shadow:0 3px 0 #142c3e,0 0 24px #ff7a2d}
+#clearStar{color:#ffd24a;font-weight:900;margin-left:6px}
 .mk.gate i{border-color:#ffd24a;border-radius:50%;border-width:4px}.mk.gate b{background:#ffb13b;color:#3a2350}.mk.off.gate i{border-bottom-color:#ffd24a}
 .mk.bomb i{border-color:#ffd24a;border-width:4px}.mk.bomb b{background:#ff8c1a}.mk.off.bomb i{border-bottom-color:#ffd24a}
 .mk.tgt i{border-color:#ff2d55;border-style:dashed;border-width:4px}.mk.tgt b{background:#ff2d55}.mk.off.tgt i{border-bottom-color:#ff2d55}
@@ -618,7 +622,7 @@ included in this distribution. Its service terms apply separately.
       <button id="btnGarage" class="btn green small2">GARAGE</button>
       <button id="btnDaily" class="btn pink small2">DAILY<span id="dailyBadge" class="badge" hidden>!</span></button>
     </div>
-    <div class="bestTag">BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
+    <div class="bestTag"><span id="clearStar" class="hidden"></span> BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
     <div id="cpRow" class="cpRow hidden"><span class="eyebrow">CHECKPOINTS</span><button id="btnCp-1" class="btn cp hidden"></button><button id="btnCp-2" class="btn cp hidden"></button><button id="btnCp-3" class="btn cp hidden"></button><button id="btnCp-4" class="btn cp hidden"></button><button id="btnCp-5" class="btn cp hidden"></button></div>
     <div id="bossWarp"><b>TEST &middot; JUMP TO BOSS</b>
       <button class="btn small" data-warp="1">FORTRESS <small>S1</small></button>
@@ -642,7 +646,8 @@ included in this distribution. Its service terms apply separately.
 <div id="over" class="screen dim hidden">
   <div class="panel overPanel">
     <div class="col">
-      <h2>SORTIE COMPLETE</h2>
+      <h2 id="overTitle">SORTIE COMPLETE</h2>
+      <div id="clearBadge" class="hidden">&#9733; ALL 5 STAGES CLEARED &#9733;</div>
       <div class="stat"><span class="lbl">SCORE</span><span class="big" id="finalScore">0</span></div>
       <div id="newBest" class="hidden">NEW BEST!</div>
       <div id="titanBadge" class="hidden">OMEGA TITAN SLAIN</div>

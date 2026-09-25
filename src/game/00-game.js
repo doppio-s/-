@@ -2364,8 +2364,9 @@ function resetDemoPlane() {
   }), player.mesh.visible = !0, snapCamera()
 }
 
+function renderClears() { const e = $("clearStar"); e.classList.toggle("hidden", !clearCount), e.textContent = "\u2605 CLEARED" + (clearCount > 1 ? " \xD7" + clearCount : "") + " \xB7"; }
 function toTitle() {
-  bankMastery();
+  bankMastery(), renderClears();
   CG.gameplayStop(), applyTheme(0), $("upgrade").classList.add("hidden"), ramTime = rollTime = shieldTime = stormTime = cloakTime = 0, player.rollFx = 0, shieldMesh.visible = !1, state = "title", clearWorld(), clearInput(), resetDemoPlane(), $("titleBest").textContent = best, $("titleCoins").textContent = garage.coins, $("dailyBadge").hidden = !canClaimDaily(), setHud(!1), $("hint").classList.add("hidden"), renderCheckpoints(), showOnly("title")
 }
 
@@ -2401,7 +2402,7 @@ function startRun(cp) {
     stall: !1,
     boosting: !1,
     braking: !1
-  }), player.mesh.visible = !0, snapCamera(), gameTime = 0, kills = 0, killPts = 0, runCoinsGiven = 0, revived = !1, speedLevel = 0, botSpawnCd = 3, heartCd = 20, bossCount = 0, nextBossAt = 1e9, bestCombo = 0, startTips(), titanPhase = "none", titanT = 0, titanWarned = !1, titanSlain = !1, supplyT = 14, acePhase = "none", aceT = 0, aceWarned = !1, aceSlain = !1, carrierPhase = "none", carrierT = 0, carrierWarned = !1, carrierSunk = !1, runCheckpoint = CP_BOSS[cp] ? cp : 0, runReached = 0, initDirector(runCheckpoint || 1, !!runCheckpoint), runCheckpoint && grantCheckpointUpgrades(runCheckpoint);
+  }), player.mesh.visible = !0, snapCamera(), runCleared = !1, gameTime = 0, kills = 0, killPts = 0, runCoinsGiven = 0, revived = !1, speedLevel = 0, botSpawnCd = 3, heartCd = 20, bossCount = 0, nextBossAt = 1e9, bestCombo = 0, startTips(), titanPhase = "none", titanT = 0, titanWarned = !1, titanSlain = !1, supplyT = 14, acePhase = "none", aceT = 0, aceWarned = !1, aceSlain = !1, carrierPhase = "none", carrierT = 0, carrierWarned = !1, carrierSunk = !1, runCheckpoint = CP_BOSS[cp] ? cp : 0, runReached = 0, initDirector(runCheckpoint || 1, !!runCheckpoint), runCheckpoint && grantCheckpointUpgrades(runCheckpoint);
   for (let i = 0; i < 7; i++) spawnPickup("ammo");
   spawnPickup("missile"), setupTurrets(), enterReady(), startLaunchCine()
 }
@@ -2475,8 +2476,9 @@ function showOver() {
   }
   const earned = runCoins() - runCoinsGiven;
   earned > 0 && (runCoinsGiven += earned, garage.coins += earned, saveGarage()), $("finalScore").textContent = sc, $("finalTime").textContent = Math.floor(gameTime) + "s", $("finalKills").textContent = kills, $("finalBosses").textContent = stage + "-" + Math.max(1, wave), overShownAt = performance.now(), $("finalBest").textContent = best, $("finalCoins").textContent = runCoins(), $("finalCoinTotal").textContent = garage.coins, $("newBest").classList.toggle("hidden", !isNew), $("titanBadge").classList.toggle("hidden", !titanSlain), $("aceBadge").classList.toggle("hidden", !aceSlain), $("carrierBadge").classList.toggle("hidden", !carrierSunk), $("btnRevive").classList.add("hidden"), $("cpNote").classList.toggle("hidden", !runCheckpoint);
-  const retry = runReached || runCheckpoint;
-  $("btnRetryCp").classList.toggle("hidden", !retry), retry && ($("btnRetryCp").innerHTML = "&#8635; RETRY S" + retry + " " + CP_BOSS[retry]), $("btnRevive").innerHTML = '<span class="adTag">AD</span>CONTINUE', setOverButtons(!0), showOnly("over"), Sound.sfxOver()
+  const retry = !runCleared && (runReached || runCheckpoint);
+  $("overTitle").textContent = runCleared ? "MISSION COMPLETE" : "SORTIE COMPLETE", $("over").classList.toggle("cleared", runCleared), $("clearBadge").classList.toggle("hidden", !runCleared), runCleared && ($("finalBosses").textContent = "\u2605 5");
+  $("btnRetryCp").classList.toggle("hidden", !retry), retry && ($("btnRetryCp").innerHTML = "&#8635; RETRY S" + retry + " " + CP_BOSS[retry]), $("btnRevive").innerHTML = '<span class="adTag">AD</span>CONTINUE', setOverButtons(!0), runCleared && $("btnRevive").classList.add("hidden"), showOnly("over"), runCleared ? Sound.sfxFanfare(!0) : Sound.sfxOver()
 }
 
 function setOverButtons(on) {
@@ -6789,7 +6791,36 @@ function startBossFight() {
   stage <= STAGE_N && reachCheckpoint(stage), kind === "fortress" ? announceBoss() : kind === "titan" ? (titanPhase = "none", titanWarned = !1, startTitanIntro()) : kind === "ace" ? (acePhase = "none", aceWarned = !1, startAceIntro()) : kind === "serpent" ? (serpentPhase = "none", startSerpentIntro()) : (carrierPhase = "none", carrierWarned = !1, startCarrierIntro())
 }
 
+// ---- game clear: all 5 stages done ----
+let runCleared = !1, clearCount = 0;
+function gameClear() {
+  runCleared = !0, dirPhase = "cleared", dirT = 6, player.invul = 999;
+  for (const b of bots) b.dead || (b.dead = !0, explode(b.x, b.y, b.z, .8), removeBot(b));
+  bots = [], bullets = bullets.filter(b => !b.enemy);
+  for (const m of missiles) m.enemy && removeMissile(m);
+  missiles = missiles.filter(m => !m.dead);
+  for (const t of turrets) t.dead || (t.dead = !0, explode(t.x, t.y, t.z, 1), t.mesh.userData.head && wreckTurret(t));
+  const hpBonus = player.hp * 1e3, bonus = 5e4 + hpBonus, coins = 1e3;
+  killPts += bonus, garage.coins += coins, clearCount++, Store.set("clears", clearCount), saveGarage();
+  clearCheckpoint(stage);
+  setCine("ALL " + STAGE_N + " STAGES CLEARED", "MISSION COMPLETE", "CLEAR BONUS +" + bonus + " &middot; +" + coins + " COINS");
+  showCine(), killFlash(), hitStop(1.2, .2), shake = .4, Sound.sfxFanfare(!0), CG.happytime(), updateHud(!0);
+  banner("MISSION COMPLETE", "ALL CLEAR", "#ffd24a");
+}
+function updateGameClear(dt) {
+  player.invul = 999;
+  // fireworks over the clouds
+  if (Math.random() < dt * 5) {
+    const a = rand(0, 6.3), r = rand(25, 70), x = player.x + Math.cos(a) * r + fwdOf(player)[0] * 40, z = player.z + Math.sin(a) * r + fwdOf(player)[2] * 40, y = player.y + rand(10, 30),
+      col = [16769354, 16735370, 8385535, 6485484, 16777215][Math.random() * 5 | 0];
+    shockwave(x, y, z, rand(12, 22), col, .6);
+    for (let i = 0; i < 26; i++) { const u = rand(0, 6.3), w = rand(-1, 1), v = rand(14, 24); addPart(x, y, z, Math.cos(u) * Math.sqrt(1 - w * w) * v, w * v, Math.sin(u) * Math.sqrt(1 - w * w) * v, rand(.8, 1.3), .45, col, 0, 6); }
+    Sound.tone(rand(500, 900), .12, "triangle", .05, rand(1200, 1800));
+  }
+  (dirT -= dt) <= 0 && (hideCine(), dirPhase = "none", ramTime = rollTime = shieldTime = stormTime = cloakTime = 0, CG.gameplayStop(), showOver());
+}
 function stageCleared() {
+  if (stage >= STAGE_N) { gameClear(); return }   // the SKY SERPENT is the last boss: beating it clears the game
   dirPhase = "stageClear", dirT = 2.4;
   for (const b of bots) b.dead || (b.dead = !0, explode(b.x, b.y, b.z, .8), removeBot(b));
   bots = [], stage <= STAGE_N && clearCheckpoint(stage);
@@ -6844,7 +6875,8 @@ function updateDirector(dt) {
       }
     }
     bossSeen && !boss && !duelLock() && bossWarnT <= 0 && stageCleared()
-  } else dirPhase === "stageClear" && (dirT -= dt) <= 0 && openUpgrade("STAGE " + stage + " CLEAR", nextStage)
+  } else if (dirPhase === "cleared") updateGameClear(dt);
+  else dirPhase === "stageClear" && (dirT -= dt) <= 0 && openUpgrade("STAGE " + stage + " CLEAR", nextStage)
 }
 const UPS = [{
   id: "fire",

@@ -3,7 +3,7 @@ $("titleKeys").innerHTML = IS_TOUCH ? ["Drag anywhere for a joystick", "BOOST / 
 const b0 = parseInt(await Store.get("best"), 10);
 best = isFinite(b0) && b0 > 0 ? b0 : 0, Sound.muted = await Store.get("muted") === "1", loadGarage(await Store.get("garage")), garage.coins = Math.max(garage.coins, 99999), garage.planes = PLANES.map(p => p.id), garage.paints = PAINTS.map(p => p.id);
 for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = items.map(p => p.id);
-saveGarage(), loadAudio(await Store.get("audio")), loadControls(await Store.get("controls")), loadCheckpoints(await Store.get("checkpoints")), tutorialDone = await Store.get("tut10") === "1";
+saveGarage(), loadAudio(await Store.get("audio")), loadControls(await Store.get("controls")), loadCheckpoints(await Store.get("checkpoints")), clearCount = parseInt(await Store.get("clears"), 10) || 0, renderClears(), tutorialDone = await Store.get("tut10") === "1";
 { const hw = { '#fortress': 1, '#titan': 2, '#ace': 3, '#carrier': 4 }[location.hash]; hw && (window.__warpStage = hw); }
 applyLook(), updateMuteBtn(), lastAdTime = Date.now(), CG.loadingStop(), $("loading").classList.add("hidden"), toTitle(), location.hash === "#dbg" && (window.__dbg = {
   ev: s => eval(s)
