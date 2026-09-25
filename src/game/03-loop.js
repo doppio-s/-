@@ -175,10 +175,11 @@ function updateBots(dt,hostile){
 function hitBot(b, dmg) {
   if (b.dead) return;
   if (turrets.includes(b)) { hitTurret(b, dmg); return; }
+  if (b.hpMax == null) b.hpMax = b.hp;
   b.hp -= dmg;
   if (b.hp <= 0) { killBot(b); return; }
   for (let i = 0; i < 6; i++) addPart(b.x, b.y, b.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), 0.35, 0.4, i % 2 ? 0xffe24a : 0xffffff);
-  Sound.tone(520, 0.06, 'square', 0.05);
+  hitFx(b, dmg);
 }
 function killBot(b) {
   if (b.dead) return;
@@ -194,9 +195,10 @@ function killBot(b) {
 function hitTurret(t, dmg) {
   if (t.dead) return;
   if (t.core) { hitReactor(t, dmg); return; }
+  if (t.hpMax == null) t.hpMax = t.hp;
   t.hp -= dmg;
   for (let i = 0; i < 6; i++) addPart(t.x, t.y, t.z, rand(-6, 6), rand(0, 8), rand(-6, 6), 0.35, 0.4, i % 2 ? 0xffe24a : 0xffffff);
-  if (t.hp > 0) { Sound.tone(420, 0.06, 'square', 0.05); return; }
+  if (t.hp > 0) { hitFx(t, dmg); return; }
   t.dead = true; kills++; awardKill(t.x, t.y, t.z, t.pts); if (!t.carrier) waveKill(t);
   explode(t.x, t.y, t.z, 1.4); Sound.sfxBoom();
   wreckTurret(t);
@@ -291,6 +293,7 @@ function update(dt) {
   updateSpace(dt);
   updateAsteroids(dt);
   updateHazards(dt);
+  updateHitFx(dt);
   if (state === 'playing' || state === 'dying' || state === 'over') updateMines(dt);
   seaTex.offset.x = (seaTex.offset.x + dt * 0.004) % 1;
 
@@ -459,7 +462,7 @@ function updateCamera(dt) {
 const reticle = $('reticle'), markerBox = $('markers'), steerKnob = $('steerKnob');
 const MARKS = [], PICKS = [];
 for (let i = 0; i < 18; i++) {
-  const m = document.createElement('div'); m.className = 'mk'; m.innerHTML = '<i></i><b></b>'; m.hidden = true; markerBox.appendChild(m); MARKS.push(m);
+  const m = document.createElement('div'); m.className = 'mk'; m.innerHTML = '<i><em><u></u></em></i><b></b>'; m.hidden = true; markerBox.appendChild(m); MARKS.push(m);
 }
 for (let i = 0; i < 10; i++) { const q = document.createElement('div'); q.className = 'pk'; q.hidden = true; markerBox.appendChild(q); PICKS.push(q); }
 const _pv = new THREE.Vector3();
@@ -501,6 +504,10 @@ function updateAimUI() {
       m.style.transform = `translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px)`;
       m.firstChild.style.width = m.firstChild.style.height = sz.toFixed(0) + 'px';
       m.lastChild.textContent = it.lbl + Math.round(d) + 'm'; m.lastChild.style.top = (sz / 2 + 4).toFixed(0) + 'px';
+      const hurt = b.hpMax > 1 && b.hp < b.hpMax && b !== boss && !b.core;   // HP bar once a tough target has taken damage
+      m.firstChild.firstChild.style.display = hurt ? '' : 'none';
+      if (hurt) m.firstChild.firstChild.firstChild.style.width = clamp(b.hp / b.hpMax * 100, 0, 100).toFixed(0) + '%';
+      if (b.hitT > 0) m.className += ' hit';
     } else {
       const rel = p ? Math.atan2(p.x - W / 2, -(p.y - H / 2)) : wrapA(Math.atan2(dz, dx) - camA);   // 0 = up / straight ahead
       const R0 = Math.min(W, H) * 0.42, ax = W / 2 + Math.sin(rel) * R0, ay = H / 2 - Math.cos(rel) * R0;

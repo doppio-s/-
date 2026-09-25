@@ -563,7 +563,7 @@ function hitBoss(dmg, at) {
   if (boss.carrier && carrierBlocks(at)) return;
   boss.hp -= dmg;
   for (let i = 0; i < 5; i++) addPart(at.x, at.y, at.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), 0.35, 0.45, i % 2 ? 0xffe24a : 0xffffff);
-  Sound.tone(300, 0.05, 'square', 0.05);
+  if (boss.hp > 0) hitFx(boss, dmg, at);
   $('bossFill').style.width = Math.max(0, boss.hp / boss.max * 100).toFixed(1) + '%';
   if (boss.titan) { if (boss.hp <= 0) killTitan(); return; }
   if (boss.carrier) { carrierBar(); if (boss.hp <= 0) killCarrier(); return; }
@@ -969,3 +969,64 @@ function drawLocks(on, R) {
 }
 
 
+
+// ---- hit feedback: every enemy flashes, punches, shows a damage number and (if tough) an HP bar ----
+const hitFlashing = new Set();
+let hitSfxT = 0;
+function hitMats(o) {   // materials are shared through M(); give this enemy its own copies once
+  if (o._hitMats) return o._hitMats;
+  const list = [], seen = new Map();
+  o.mesh.traverse(n => {
+    if (!n.isMesh || !n.material || !n.material.isMeshStandardMaterial) return;
+    let c = seen.get(n.material);
+    if (!c) { c = n.material.clone(); seen.set(n.material, c); list.push({ m: c, e: c.emissive.clone(), ei: c.emissiveIntensity }); }
+    n.material = c;
+  });
+  return (o._hitMats = list);
+}
+function hitFx(o, dmg, at) {
+  if (!o || !o.mesh) return;
+  const huge = o.titan || o.carrier;
+  if (o.hpMax == null) o.hpMax = o.max || o.hp + dmg;
+  if (o._bs == null) o._bs = o.mesh.scale.x;
+  o.hitT = huge ? 0.07 : 0.11; o.hitDur = o.hitT; o.hitK = huge ? 0.35 : o.boss ? 0.7 : 1;
+  hitMats(o); hitFlashing.add(o);
+  // sparks + a small ring where it connected
+  const p = at || o;
+  for (let i = 0; i < 4; i++) addPart(p.x, p.y, p.z, rand(-9, 9), rand(-4, 9), rand(-9, 9), 0.22, 0.5, 0xffffff, 0.3);
+  if (!huge) shockwave(p.x, p.y, p.z, 3.5 * (o.scale || 1), 0xffffff, 0.16);
+  dmgNumber(o, dmg);
+  // crisp tick, pitched up as the target gets closer to dying
+  const now = performance.now();
+  if (now > hitSfxT) {
+    hitSfxT = now + 45;
+    const k = clamp(1 - o.hp / (o.hpMax || 1), 0, 1);
+    Sound.tone(900 + k * 700, 0.035, 'square', 0.045); Sound.tone(180, 0.06, 'triangle', 0.08, 90);
+  }
+  if (o.boss || o.titan || o.ace || o.carrier) { const bb = $('bossBar'); bb.classList.remove('hit'); void bb.offsetWidth; bb.classList.add('hit'); }
+}
+function updateHitFx(dt) {
+  for (const o of hitFlashing) {
+    o.hitT -= dt;
+    const k = Math.max(0, o.hitT / o.hitDur);
+    for (const it of o._hitMats) {
+      if (k > 0) { it.m.emissive.setRGB(1, 1, 1); it.m.emissiveIntensity = Math.max(it.ei, 1.4 * k * o.hitK); }
+      else { it.m.emissive.copy(it.e); it.m.emissiveIntensity = it.ei; }
+    }
+    const punch = o.titan || o.carrier ? 0 : o.boss ? 0.06 : 0.2;
+    o.mesh.scale.setScalar(o._bs * (1 + punch * k));
+    if (k <= 0) hitFlashing.delete(o);
+  }
+}
+function clearHitFx() { for (const o of hitFlashing) { o.hitT = 0; } updateHitFx(0); hitFlashing.clear(); }
+// damage numbers: hits on the same target within a moment add up into one number
+function dmgNumber(o, dmg) {
+  const now = performance.now(), v = Math.max(1, Math.round(dmg * 10));
+  const live = o._dmgPop && pops.includes(o._dmgPop) && now - o._dmgPop.t0 < 350;
+  if (live) { const q = o._dmgPop; q.sum += v; q.el.textContent = q.sum; q.until = now + 600; q.x = o.x; q.y = o.y + 2.5 * (o.scale || 1); q.z = o.z; q.t0 = now; q.el.classList.remove('bump'); void q.el.offsetWidth; q.el.classList.add('bump'); return; }
+  if (pops.length >= 12) { const i = pops.findIndex(q => q.dmg); const q = pops.splice(i >= 0 ? i : 0, 1)[0]; q.el.remove(); }
+  const el = document.createElement('div'); el.className = 'pop dmg'; el.textContent = v;
+  $('popups').appendChild(el);
+  const q = { x: o.x + rand(-1, 1), y: o.y + 2.5 * (o.scale || 1), z: o.z + rand(-1, 1), el, until: now + 600, dmg: true, sum: v, t0: now };
+  pops.push(q); o._dmgPop = q;
+}

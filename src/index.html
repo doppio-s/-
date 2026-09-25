@@ -360,6 +360,16 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #popups{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
 .pop{position:absolute;left:0;top:0;font-weight:900;font-size:22px;color:#fff;white-space:nowrap;text-shadow:0 2px 0 #142c3e,2px 0 0 #142c3e,-2px 0 0 #142c3e,0 -2px 0 #142c3e;animation:pop 1s ease-out forwards}
 .pop.big{font-size:34px;color:#ffbb58}
+.pop.dmg{font-size:17px;color:#ffe24a;animation:dmgpop .6s ease-out forwards}
+.pop.dmg.bump{animation:dmgbump .6s ease-out forwards}
+@keyframes dmgpop{0%{opacity:1;margin-top:0;font-size:24px}20%{font-size:17px}100%{opacity:0;margin-top:-26px}}
+@keyframes dmgbump{0%{opacity:1;margin-top:0;font-size:26px;color:#fff}25%{font-size:19px;color:#ffe24a}100%{opacity:0;margin-top:-22px}}
+.mk i em{display:block;position:absolute;left:-2px;right:-2px;bottom:-11px;height:6px;border-radius:3px;background:#142c3ecc;overflow:hidden;border:1px solid #fff}
+.mk i em u{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff4d6d,#ffe24a)}
+.mk.off i em{display:none}
+.mk.hit i{border-color:#fff !important;box-shadow:0 0 10px #fff}
+#bossBar.hit .track{animation:bbhit .18s ease-out}
+@keyframes bbhit{0%{transform:translateX(-3px);border-color:#ffe24a}50%{transform:translateX(3px)}100%{transform:none}}
 .pop.mega{font-size:56px;color:#ffd24a;text-shadow:0 3px 0 #142c3e,3px 0 0 #142c3e,-3px 0 0 #142c3e,0 -3px 0 #142c3e,0 0 24px #ff7a2d}
 @keyframes pop{0%{opacity:0;margin-top:0}12%{opacity:1}100%{opacity:0;margin-top:-60px}}
 /* combo counter */

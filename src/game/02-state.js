@@ -345,7 +345,7 @@ function clearWorld() {
   boss = null; bossWarnT = 0; combo = 0; comboT = 0;
   $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('titan', 'ace', 'shield'); $('bossWarn').classList.add('hidden'); $('combo').classList.add('hidden');
   hideCine(); slowT = 0; slowScale = 1;
-  clearPopups(); hideTip();
+  clearPopups(); hideTip(); clearHitFx();
 }
 function resetDemoPlane() {
   Object.assign(player, { x: 0, y: ALT, z: 0, a: -Math.PI / 2, p: 0, roll: 0, alive: true });

@@ -220,7 +220,7 @@ function hitReactor(t, dmg) {   // called from hitTurret for the core
   for (let i = 0; i < 6; i++) addPart(t.x, t.y, t.z, rand(-6, 6), rand(-6, 6), rand(-6, 6), 0.35, 0.45, B.phase === 1 ? 0x9fdcff : 0xffe24a);
   if (B.phase === 1) { if ((B.shieldMsgT || 0) <= 0) { B.shieldMsgT = 3; toast('REACTOR SHIELDED · destroy the hull guns first'); } return; }
   t.hp -= dmg; B.hp = t.hp;
-  Sound.tone(260, 0.05, 'square', 0.06);
+  if (t.hp > 0) { hitFx(t, dmg); hitFx(B, dmg, t); }
   carrierBar();
   if (t.hp <= 0) { t.dead = true; killCarrier(); }
 }
