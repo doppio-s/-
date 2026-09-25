@@ -19,6 +19,7 @@ function updateAceFlow(dt) {
 }
 function startAceIntro() {
   acePhase = 'intro'; aceT = 3;
+  reachCheckpoint('ace');
   $('bossWarn').classList.add('hidden'); bossWarnT = 0;
   let n = 0;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 1.1); removeBot(b); n++; }
@@ -60,7 +61,7 @@ function spawnAce() {
   boss = { x, y: clampAlt(player.y + 6), z, a: Math.atan2(player.z - z, player.x - x), p: 0, roll: 0, rollFx: 0, hp, max: hp, scale: 1.3, ace: true, boss: true,
     pts: 15000, phase: 1, intro: 1.8, fireCd: 2, burst: 0, burstT: 0, mslCd: 8, sonicCd: 6,
     dodgeT: 0, dodgeCd: 0, dodgeDir: 1, dodges: 0, flares: 4, flareCd: 0, flareRegen: 12,
-    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 14, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
+    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 24, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
   scene.add(boss.mesh);
   $('bossName').textContent = 'ACE · FALCON ZERO';
   $('bossFill').style.width = '100%';
@@ -90,6 +91,10 @@ function aceBlocks(at) {
 function aceDamaged(dmg) {
   const B = boss;
   B.dmgWin += dmg;
+  if (B.cloakT > 0) {   // any hit breaks the cloak
+    B.cloakT = 0; B.mesh.visible = true;
+    shockwave(B.x, B.y, B.z, 12, 0xb69dff, 0.35); popup(B.x, B.y + 3, B.z, 'REVEALED'); Sound.tone(600, 0.15, 'square', 0.06, 300);
+  }
   if (B.phase === 1 && B.hp <= B.max / 2) {
     B.phase = 2; $('bossName').textContent = 'ACE · FALCON ZERO · UNLEASHED';
     banner('UNLEASHED', 'FALCON ZERO STOPS HOLDING BACK', '#ff2d55');
@@ -222,13 +227,13 @@ function updateAce(dt, hostile) {
       shockwave(B.x, B.y, B.z, 14, 0xb69dff, 0.4); Sound.tone(200, 0.4, 'sine', 0.12, 900);
       popup(B.x, B.y + 3, B.z, 'AMBUSH!'); B.fireCd = 0; B.burst = 0;
     }
-  } else if (engaged && state === 'playing' && B.intro <= 0 && B.ramCharge <= 0 && B.cloakCd <= 0 && (toMe > 0.5 || B.hp < B.max * 0.75 || d > 55)) {
-    B.cloakT = ph2 ? 4 : 3.2; B.cloakCd = ph2 ? 13 : 18; B.lock = 0;
+  } else if (engaged && state === 'playing' && B.intro <= 0 && B.ramCharge <= 0 && B.cloakCd <= 0 && (toMe > 0.5 || B.hp < B.max * 0.75)) {
+    B.cloakT = ph2 ? 2.8 : 2.2; B.cloakCd = ph2 ? 20 : 26; B.lock = 0;
     for (const m of missiles) if (!m.enemy && m.target === B) { m.target = null; m.sure = false; }
     shockwave(B.x, B.y, B.z, 12, 0xb69dff, 0.4); Sound.tone(900, 0.5, 'sine', 0.08, 200);
     popup(B.x, B.y + 3, B.z, 'CLOAKED'); toast('FALCON ZERO VANISHED — WATCH YOUR SIX');
   }
-  B.mesh.visible = !(B.cloakT > 0) || Math.random() < 0.04;   // rare shimmer gives it away
+  B.mesh.visible = !(B.cloakT > 0) || Math.floor(time * 8) % 4 === 0;   // steady shimmer gives it away
   // --- flight: hunt the player's six; weave hard whenever it's in the player's sights ---
   const baseSpd = playerSpeed() / (ramTime > 0 ? 1.65 : 1);
   let tx, ty, tz, spd;
@@ -296,6 +301,7 @@ function updateAce(dt, hostile) {
 function killAce() {
   const B = boss;
   B.dead = true; B.dying = 1.8; bossCount++; kills++; aceSlain = true;
+  clearCheckpoint('ace');
   B.mesh.userData.shield.visible = false; B.rollFx = 0; B.cloakT = 0; B.ramT = 0; B.ramCharge = 0; B.mesh.visible = true;
   awardKill(B.x, B.y + 4, B.z, B.pts, true);
   $('bossBar').classList.add('hidden'); $('bossBar').classList.remove('ace', 'shield');

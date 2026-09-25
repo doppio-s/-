@@ -737,6 +737,9 @@ function onBtn(id, fn) {
   $(id).addEventListener('pointerdown', e => e.stopPropagation());
 }
 onBtn('btnPlay', () => { if (state !== 'title') return; Sound.sfxClick(); startRun(); });
+onBtn('btnCp-titan', () => { if (state !== 'title') return; Sound.sfxClick(); startRun('titan'); });
+onBtn('btnCp-ace', () => { if (state !== 'title') return; Sound.sfxClick(); startRun('ace'); });
+onBtn('btnRetryCp', () => { if (state !== 'over' || busy) return; Sound.sfxClick(); startRun(runReached || runCheckpoint); });
 onBtn('btnGarage', () => { if (state !== 'title') return; Sound.sfxClick(); openGarage(); });
 onBtn('btnDaily', () => { if (state !== 'title') return; Sound.sfxClick(); openDaily(); });
 onBtn('btnClaim', () => { Sound.sfxClick(); claimDaily(); });

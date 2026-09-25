@@ -19,6 +19,7 @@ for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = ite
 saveGarage();
 loadAudio(await Store.get('audio'));
 tutorialDone = (await Store.get('tut')) === '1';
+loadCheckpoints(await Store.get('checkpoints'));
 // test hook: open the page with #titan to jump straight to 2:55
 if (location.hash === '#ace') {
   window.__skipToAce = true;

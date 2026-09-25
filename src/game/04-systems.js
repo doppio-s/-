@@ -728,6 +728,7 @@ function updateTitanFlow(dt) {
 // 3:00 — the sky is wiped clean, then the titan arrives
 function startTitanIntro() {
   titanPhase = 'intro'; titanT = 3.4;
+  reachCheckpoint('titan');
   $('bossWarn').classList.add('hidden'); bossWarnT = 0;
   let n = 0;
   for (const b of bots) { if (b.dead) continue; b.dead = true; explode(b.x, b.y, b.z, 1.1); removeBot(b); n++; }
@@ -886,6 +887,7 @@ function updateTitan(dt, hostile) {
 function killTitan() {
   const B = boss;
   B.dead = true; B.dying = 3.4; bossCount++; kills++; titanSlain = true;
+  clearCheckpoint('titan');
   awardKill(B.x, B.y + 8, B.z, B.pts, true);
   $('bossBar').classList.add('hidden');
   shake = 0.8; hitStop(1.6, 0.18); killFlash();

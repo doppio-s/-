@@ -393,6 +393,11 @@ legend{text-transform:uppercase;font-size:10px;letter-spacing:.2em;font-weight:8
 #bossBar .tick.t50{display:none}#bossBar.ace .tick.t50{display:block}
 #bossBar.ace.shield .track{box-shadow:0 0 22px #7ff3ff;border-color:#fff}#bossBar.ace.shield .fill{filter:saturate(.3) brightness(1.6)}
 #aceBadge{background:linear-gradient(90deg,#142c3e,#ff2d55);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(2deg);box-shadow:0 0 18px #ff2d5588}
+.cpRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cpRow .eyebrow{color:#ffcb81}
+.btn.cp{font-size:14px;padding:9px 14px;min-width:0;background:#142c3ee6;color:#fff;border-color:#ff5c7a;box-shadow:0 3px 0 #ff2d55}
+.btn.cp .cpDone{color:#62f5ec}
+#btnRetryCp{font-size:17px}
 #titanBadge{background:linear-gradient(90deg,#ff2d55,#ffb13b);color:#fff;font-weight:900;letter-spacing:.12em;padding:5px 16px;border-radius:999px;transform:rotate(-2deg);box-shadow:0 0 18px #ff7a2d88}
 </style>
 <!-- THIRD-PARTY LICENSES
@@ -479,6 +484,7 @@ included in this distribution. Its service terms apply separately.
       <button id="btnGarage" class="btn green small2">GARAGE</button>
       <button id="btnDaily" class="btn pink small2">DAILY<span id="dailyBadge" class="badge" hidden>!</span></button>
     </div>
+    <div id="cpRow" class="cpRow hidden"><span class="eyebrow">CHECKPOINTS</span><button id="btnCp-titan" class="btn cp hidden"></button><button id="btnCp-ace" class="btn cp hidden"></button></div>
     <div class="bestTag">BEST: <span id="titleBest">0</span> &nbsp;&middot;&nbsp; <span class="coin"></span><span id="titleCoins">0</span></div>
     <div class="keys" id="titleKeys">Mouse or Arrow keys / WASD</div>
   </div>
@@ -500,6 +506,7 @@ included in this distribution. Its service terms apply separately.
       <div id="newBest" class="hidden">NEW BEST!</div>
       <div id="titanBadge" class="hidden">OMEGA TITAN SLAIN</div>
       <div id="aceBadge" class="hidden">ACE FALCON ZERO DOWNED</div>
+      <div id="cpNote" class="note hidden">CHECKPOINT RUN &middot; BEST NOT RECORDED</div>
       <div class="coinGain"><span class="coin"></span>+<span id="finalCoins">0</span> coins &middot; total <span id="finalCoinTotal">0</span></div>
       <div class="row">
         <div class="stat"><span class="lbl">TIME</span><span class="val" id="finalTime">0s</span></div>
@@ -510,6 +517,7 @@ included in this distribution. Its service terms apply separately.
     </div>
     <div class="col">
       <button id="btnRevive" class="btn pink"><span class="adTag">AD</span>CONTINUE</button>
+      <button id="btnRetryCp" class="btn green hidden"></button>
       <button id="btnAgain" class="btn">PLAY AGAIN</button>
       <button id="btnOverGarage" class="btn small">GARAGE</button>
     </div>
