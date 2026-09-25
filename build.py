@@ -23,3 +23,11 @@ for name, text in (('three', bundle), ('game', game)):
 page = page.replace('/*@@THREE@@*/', bundle).replace('/*@@GAME@@*/', game)
 (root / 'flight-test.html').write_text(page)
 print('wrote flight-test.html', len(page), 'bytes')
+
+# ace-duel test build: every PLAY starts at 4:52, right before FALCON ZERO arrives
+hook = "if (location.hash === '#ace') {"
+assert hook in page
+ace = page.replace(hook, "if (true) {", 1).replace('<title>flight.io TEST (all unlocked)</title>', '<title>flight.io TEST · ACE DUEL</title>', 1)
+ace = ace.replace('TEST BUILD · ALL UNLOCKED', 'TEST BUILD · ACE DUEL (starts at 4:52)', 1)
+(root / 'flight-ace-test.html').write_text(ace)
+print('wrote flight-ace-test.html', len(ace), 'bytes')
