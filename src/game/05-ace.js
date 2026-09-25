@@ -55,11 +55,11 @@ function makeAce() {
 function spawnAce() {
   const ang = player.a + rand(-0.5, 0.5), d = 130;
   const x = clamp(player.x + Math.cos(ang) * d, -MAP + 40, MAP - 40), z = clamp(player.z + Math.sin(ang) * d, -MAP + 40, MAP - 40);
-  const hp = Math.round(70 + 45 * gunDmg() * planeNow().guns);
+  const hp = Math.round(52 + 34 * gunDmg() * planeNow().guns);
   boss = { x, y: clampAlt(player.y + 6), z, a: Math.atan2(player.z - z, player.x - x), p: 0, roll: 0, rollFx: 0, hp, max: hp, scale: 1.3, ace: true, boss: true,
     pts: 15000, phase: 1, intro: 1.8, fireCd: 2, burst: 0, burstT: 0, mslCd: 8, sonicCd: 6,
-    dodgeT: 0, dodgeCd: 0, dodgeDir: 1, dodges: 0, flares: 4, flareCd: 0, flareRegen: 12,
-    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 14, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
+    dodgeT: 0, dodgeCd: 0, dodgeDir: 1, dodges: 0, flares: 2, flareCd: 0, flareRegen: 18,
+    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 24, tailT: 0, extendT: 0, extendA: 0, extendUp: 0, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
   scene.add(boss.mesh);
   $('bossName').textContent = 'ACE · FALCON ZERO';
   $('bossFill').style.width = '100%';
@@ -69,7 +69,7 @@ function spawnAce() {
   Sound.sfxBoost(); Sound.tone(90, 0.9, 'sine', 0.25, 30);
 }
 function aceShield(B, why) {
-  B.shieldT = B.phase >= 2 ? 3.2 : 2.6; B.shieldCd = B.phase >= 2 ? 9 : 12; B.dmgWin = 0;
+  B.shieldT = B.phase >= 2 ? 2.4 : 2; B.shieldCd = B.phase >= 2 ? 13 : 16; B.dmgWin = 0;
   B.mesh.userData.shield.visible = true;
   shockwave(B.x, B.y, B.z, 12, 0x7ff3ff, 0.4);
   Sound.tone(300, 0.5, 'sine', 0.15, 900); Sound.tone(600, 0.4, 'triangle', 0.06, 1200, 0.05);
@@ -89,16 +89,20 @@ function aceBlocks(at) {
 function aceDamaged(dmg) {
   const B = boss;
   B.dmgWin += dmg;
+  if (B.cloakT > 0) {   // any hit breaks the cloak
+    B.cloakT = 0; B.mesh.visible = true;
+    shockwave(B.x, B.y, B.z, 12, 0xb69dff, 0.35); popup(B.x, B.y + 3, B.z, 'REVEALED'); Sound.tone(600, 0.15, 'square', 0.06, 300);
+  }
   if (B.phase === 1 && B.hp <= B.max / 2) {
     B.phase = 2; $('bossName').textContent = 'ACE · FALCON ZERO · UNLEASHED';
     banner('UNLEASHED', 'FALCON ZERO STOPS HOLDING BACK', '#ff2d55');
     shockwave(B.x, B.y, B.z, 40, 0xff2d55, 0.6); hitStop(0.3, 0.2); Sound.sfxSiren();
-    B.flares = Math.max(B.flares, 3); aceShield(B, 'SHIELD UP');
+    B.flares = Math.max(B.flares, 2); aceShield(B, 'SHIELD UP');
     spawnPickup('ammo'); spawnPickup('missile');
     return;
   }
   // takes a beating → shield
-  if (B.shieldCd <= 0 && B.dmgWin >= B.max * (B.phase >= 2 ? 0.08 : 0.1)) aceShield(B);
+  if (B.shieldCd <= 0 && B.dmgWin >= B.max * (B.phase >= 2 ? 0.12 : 0.15)) aceShield(B);
 }
 function aceFlares(B) {
   B.flares--; B.flareCd = 1.4;
@@ -134,7 +138,7 @@ function updateAce(dt, hostile) {
   if (B.stun > 0) { B.stun -= dt; B.dodgeCd = Math.max(B.dodgeCd, 0.1); B.fireCd = Math.max(B.fireCd, 0.1); }
   B.fireCd -= dt; B.mslCd -= dt; B.sonicCd -= dt; B.dodgeCd -= dt; B.flareCd -= dt; B.shieldCd -= dt; B.breakCd -= dt; B.ramCd -= dt; B.cloakCd -= dt;
   B.dmgWin = Math.max(0, B.dmgWin - dt * B.max * 0.04);
-  B.flareRegen -= dt; if (B.flareRegen <= 0) { B.flareRegen = ph2 ? 8 : 12; B.flares = Math.min(4, B.flares + 1); }
+  B.flareRegen -= dt; if (B.flareRegen <= 0) { B.flareRegen = ph2 ? 14 : 18; B.flares = Math.min(3, B.flares + 1); }
   if (B.shieldT > 0) { B.shieldT -= dt; ud.shield.visible = B.shieldT > 0 && (B.shieldT > 0.6 || Math.floor(time * 12) % 2 === 0); ud.shield.material.opacity = 0.22 + Math.sin(time * 14) * 0.08; }
   else ud.shield.visible = false;
   $('bossBar').classList.toggle('shield', B.shieldT > 0);
@@ -143,7 +147,7 @@ function updateAce(dt, hostile) {
   const toMe = -(pf[0] * dx + pf[1] * dy + pf[2] * dz) / d;   // >0: the ace is in front of the player's guns
   const engaged = hostile && player.alive && !playerHidden();
   B.mineCd = (B.mineCd ?? 4) - dt;
-  if (engaged && state === 'playing' && B.intro <= 0 && B.mineCd <= 0 && toMe > 0.45 && d < 75 && !(B.cloakT > 0)) { B.mineCd = ph2 ? 5 : 7; dropMine(B); }
+  if (engaged && state === 'playing' && B.intro <= 0 && B.mineCd <= 0 && toMe > 0.45 && d < 75 && !(B.cloakT > 0)) { B.mineCd = ph2 ? 9 : 12; dropMine(B); }
 
   // --- evasion: roll out of any bullet stream about to connect ---
   if (B.dodgeT > 0) {
@@ -162,8 +166,8 @@ function updateAce(dt, hostile) {
       if (t < 0 || t > 0.45) continue;
       const cx = rx - b.vx * t, cy = ry - b.vy * t, cz = rz - b.vz * t;
       if (cx * cx + cy * cy + cz * cz > 16) continue;
-      B.dodgeCd = ph2 ? 0.75 : 1.1;
-      if (Math.random() < (ph2 ? 0.88 : 0.72)) {
+      B.dodgeCd = ph2 ? 1.4 : 1.9;
+      if (Math.random() < (ph2 ? 0.55 : 0.4)) {
         // roll away from the stream's side
         const side = -Math.sin(B.a) * cx + Math.cos(B.a) * cz;
         B.dodgeDir = side >= 0 ? 1 : -1; B.dodgeUp = cy >= 0 ? 0.6 : -0.6; B.dodgeT = 0.55; B.dodges++;
@@ -182,7 +186,7 @@ function updateAce(dt, hostile) {
   }
   // --- breaks a building lock with a hard jink ---
   if ((B.lock || 0) > 0.6 && B.lock < 1 && B.breakCd <= 0) {
-    B.lock = 0; B.breakCd = ph2 ? 7 : 10;
+    B.lock = 0; B.breakCd = ph2 ? 12 : 16;
     B.dodgeDir = Math.random() < 0.5 ? -1 : 1; B.dodgeUp = rand(-0.8, 0.8); B.dodgeT = 0.55;
     popup(B.x, B.y + 3, B.z, 'LOCK BROKEN'); Sound.tone(500, 0.2, 'square', 0.06, 200);
   }
@@ -208,7 +212,7 @@ function updateAce(dt, hostile) {
     animateExhaust(B, true, dt); orientPlane(B, dt);
     return;
   } else if (engaged && state === 'playing' && B.intro <= 0 && B.cloakT <= 0 && B.dodgeT <= 0 && B.ramCd <= 0 && d > 30 && d < 95) {
-    B.ramCd = ph2 ? 9 : 13; B.ramCharge = 0.9;
+    B.ramCd = ph2 ? 13 : 17; B.ramCharge = 1.3;
     banner('SHIELD RAM', 'GET OUT OF THE WAY', '#ff2d55'); Sound.sfxSiren();
     popup(B.x, B.y + 3, B.z, 'RAM INCOMING');
   }
@@ -222,16 +226,23 @@ function updateAce(dt, hostile) {
       shockwave(B.x, B.y, B.z, 14, 0xb69dff, 0.4); Sound.tone(200, 0.4, 'sine', 0.12, 900);
       popup(B.x, B.y + 3, B.z, 'AMBUSH!'); B.fireCd = 0; B.burst = 0;
     }
-  } else if (engaged && state === 'playing' && B.intro <= 0 && B.ramCharge <= 0 && B.cloakCd <= 0 && (toMe > 0.5 || B.hp < B.max * 0.75 || d > 55)) {
-    B.cloakT = ph2 ? 4 : 3.2; B.cloakCd = ph2 ? 13 : 18; B.lock = 0;
+  } else if (engaged && state === 'playing' && B.intro <= 0 && B.ramCharge <= 0 && B.cloakCd <= 0 && (toMe > 0.5 || B.hp < B.max * 0.75)) {
+    B.cloakT = ph2 ? 2.8 : 2.2; B.cloakCd = ph2 ? 20 : 26; B.lock = 0;
     for (const m of missiles) if (!m.enemy && m.target === B) { m.target = null; m.sure = false; }
     shockwave(B.x, B.y, B.z, 12, 0xb69dff, 0.4); Sound.tone(900, 0.5, 'sine', 0.08, 200);
     popup(B.x, B.y + 3, B.z, 'CLOAKED'); toast('FALCON ZERO VANISHED — WATCH YOUR SIX');
   }
-  B.mesh.visible = !(B.cloakT > 0) || Math.random() < 0.04;   // rare shimmer gives it away
+  B.mesh.visible = !(B.cloakT > 0) || Math.floor(time * 8) % 4 === 0;   // steady shimmer gives it away
   // --- flight: hunt the player's six; weave hard whenever it's in the player's sights ---
   const baseSpd = playerSpeed() / (ramTime > 0 ? 1.65 : 1);
   let tx, ty, tz, spd;
+  // don't camp the player's six: after a few seconds on the tail, extend away and come back from a new angle
+  const onTail = engaged && toMe < -0.3 && d < 60 && !(B.cloakT > 0);
+  if (B.extendT > 0) B.extendT -= dt;
+  else if (onTail) {
+    B.tailT += dt;
+    if (B.tailT > (ph2 ? 3.8 : 2.8)) { B.tailT = 0; B.extendT = rand(2.8, 3.8); B.extendA = B.a + (Math.random() < 0.5 ? -1 : 1) * rand(0.7, 1.1); B.extendUp = rand(-12, 14); }
+  } else B.tailT = Math.max(0, B.tailT - dt * 0.5);
   B.weave += dt * (ph2 ? 3.4 : 2.6);
   if (!engaged) { tx = B.x + Math.cos(B.a) * 40; tz = B.z + Math.sin(B.a) * 40; ty = B.y; spd = baseSpd; }
   else if (d < 16) {   // too close: break off to the side
@@ -239,20 +250,22 @@ function updateAce(dt, hostile) {
     tx = B.x + Math.cos(sa) * 40; tz = B.z + Math.sin(sa) * 40; ty = clampAlt(B.y + 8); spd = baseSpd * 1.2;
   } else if (B.cloakT > 0) {   // invisible: slip in behind the player
     tx = player.x - pf[0] * 30; ty = player.y + 3; tz = player.z - pf[2] * 30; spd = baseSpd * 1.35;
+  } else if (B.extendT > 0) {   // extending: open the distance, then re-engage (often head-on)
+    tx = B.x + Math.cos(B.extendA) * 50; tz = B.z + Math.sin(B.extendA) * 50; ty = clampAlt(B.y + B.extendUp); spd = baseSpd * 1.25;
   } else if (toMe > 0.55) {   // defensive: in the crosshair → jink
     const wa = B.a + Math.sin(B.weave) * 1.1;
     tx = B.x + Math.cos(wa) * 40; tz = B.z + Math.sin(wa) * 40; ty = clampAlt(B.y + Math.cos(B.weave * 0.8) * 16);
     spd = baseSpd * (ph2 ? 1.25 : 1.15);
   } else {   // offensive: settle in behind and lead the shot
     const ps = playerSpeed(), lead = d / (botSpeed() + 30) * 0.5;
-    const behind = d > 45 ? 0 : 22;
+    const behind = d > 45 ? 0 : 30;
     tx = player.x - pf[0] * behind + pf[0] * ps * lead; ty = player.y - pf[1] * behind + pf[1] * ps * lead + 2; tz = player.z - pf[2] * behind + pf[2] * ps * lead;
-    spd = baseSpd * (d > 60 ? 1.3 : 1.05) * (ph2 ? 1.1 : 1);
+    spd = baseSpd * (d > 60 ? 1.3 : d > 45 ? 1.05 : 0.92) * (ph2 ? 1.08 : 1);   // settles slightly slower than you on the tail, so you can turn it around
   }
   tx = clamp(tx, -MAP + 20, MAP - 20); tz = clamp(tz, -MAP + 20, MAP - 20);
   let desired = Math.atan2(tz - B.z, tx - B.x);
   if (Math.abs(B.x) > MAP - 10 || Math.abs(B.z) > MAP - 10) desired = Math.atan2(-B.z, -B.x);
-  turnToward(B, desired, ph2 ? 3.4 : 2.8, dt);
+  turnToward(B, desired, ph2 ? 2.9 : 2.4, dt);
   let pitch = clamp(Math.atan2(ty - B.y, Math.max(1, Math.hypot(tx - B.x, tz - B.z))), -0.6, 0.6);
   if (B.y <= ALT_MIN + 1 && pitch < 0) pitch = 0; if (B.y >= ALT_MAX - 1 && pitch > 0) pitch = 0;
   B.p = lerp(B.p, pitch, Math.min(1, dt * 3));
@@ -261,9 +274,9 @@ function updateAce(dt, hostile) {
   B.x += Math.cos(B.a) * cp * spd * dt; B.z += Math.sin(B.a) * cp * spd * dt; B.y = clamp(B.y + Math.sin(B.p) * spd * dt, ALT_MIN, ALT_MAX);
 
   // --- weapons ---
-  if (engaged && state === 'playing' && B.intro <= 0 && B.cloakT <= 0 && B.ramCharge <= 0) {
+  if (engaged && state === 'playing' && B.intro <= 0 && B.cloakT <= 0 && B.ramCharge <= 0 && !(B.extendT > 0)) {
     const f = fwdOf(B), off = Math.acos(clamp((dx * f[0] + dy * f[1] + dz * f[2]) / d, -1, 1));
-    if (B.burst <= 0 && B.fireCd <= 0 && d < 75 && off < 0.3) { B.burst = ph2 ? 6 : 4; B.fireCd = ph2 ? 0.9 : 1.3; }
+    if (B.burst <= 0 && B.fireCd <= 0 && d < 70 && off < 0.22) { B.burst = ph2 ? 4 : 3; B.fireCd = ph2 ? 1.5 : 2; }
     if (B.burst > 0 && (B.burstT -= dt) <= 0) {
       B.burst--; B.burstT = 0.08;
       const ps = playerSpeed(), lead = d / (botSpeed() + 30);
@@ -271,8 +284,8 @@ function updateAce(dt, hostile) {
       Sound.sfxEnemyShoot({ airframe: 'falcon' });
     }
     if (B.mslCd <= 0 && d > 30 && d < 100 && off < 0.9) {
-      for (let i = 0; i < (ph2 ? 2 : 1); i++) launchMissile({ ...B, a: B.a + (i ? 0.25 : -0.1) }, true);
-      B.mslCd = rand(8, 11); popup(B.x, B.y + 3, B.z, 'FOX TWO');
+      launchMissile(B, true);
+      B.mslCd = rand(12, 16); popup(B.x, B.y + 3, B.z, 'FOX TWO');
     }
     // unleashed: sonic boom when you get close — wipes your bullets, hurts up close
     if (ph2 && B.sonicCd <= 0 && d < 24) {
