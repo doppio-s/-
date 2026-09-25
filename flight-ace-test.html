@@ -3568,7 +3568,7 @@ function spawnAce() {
   boss = { x, y: clampAlt(player.y + 6), z, a: Math.atan2(player.z - z, player.x - x), p: 0, roll: 0, rollFx: 0, hp, max: hp, scale: 1.3, ace: true, boss: true,
     pts: 15000, phase: 1, intro: 1.8, fireCd: 2, burst: 0, burstT: 0, mslCd: 8, sonicCd: 6,
     dodgeT: 0, dodgeCd: 0, dodgeDir: 1, dodges: 0, flares: 4, flareCd: 0, flareRegen: 12,
-    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 24, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
+    shieldT: 0, shieldCd: 6, ramCd: 9, ramCharge: 0, ramT: 0, cloakT: 0, cloakCd: 24, tailT: 0, extendT: 0, extendA: 0, extendUp: 0, dmgWin: 0, breakCd: 6, weave: rand(0, 6), trailT: 0, dying: 0, dead: false, mesh: makeAce() };
   scene.add(boss.mesh);
   $('bossName').textContent = 'ACE · FALCON ZERO';
   $('bossFill').style.width = '100%';
@@ -3744,6 +3744,13 @@ function updateAce(dt, hostile) {
   // --- flight: hunt the player's six; weave hard whenever it's in the player's sights ---
   const baseSpd = playerSpeed() / (ramTime > 0 ? 1.65 : 1);
   let tx, ty, tz, spd;
+  // don't camp the player's six: after a few seconds on the tail, extend away and come back from a new angle
+  const onTail = engaged && toMe < -0.3 && d < 60 && !(B.cloakT > 0);
+  if (B.extendT > 0) B.extendT -= dt;
+  else if (onTail) {
+    B.tailT += dt;
+    if (B.tailT > (ph2 ? 3.8 : 2.8)) { B.tailT = 0; B.extendT = rand(2.8, 3.8); B.extendA = B.a + (Math.random() < 0.5 ? -1 : 1) * rand(0.7, 1.1); B.extendUp = rand(-12, 14); }
+  } else B.tailT = Math.max(0, B.tailT - dt * 0.5);
   B.weave += dt * (ph2 ? 3.4 : 2.6);
   if (!engaged) { tx = B.x + Math.cos(B.a) * 40; tz = B.z + Math.sin(B.a) * 40; ty = B.y; spd = baseSpd; }
   else if (d < 16) {   // too close: break off to the side
@@ -3751,15 +3758,17 @@ function updateAce(dt, hostile) {
     tx = B.x + Math.cos(sa) * 40; tz = B.z + Math.sin(sa) * 40; ty = clampAlt(B.y + 8); spd = baseSpd * 1.2;
   } else if (B.cloakT > 0) {   // invisible: slip in behind the player
     tx = player.x - pf[0] * 30; ty = player.y + 3; tz = player.z - pf[2] * 30; spd = baseSpd * 1.35;
+  } else if (B.extendT > 0) {   // extending: open the distance, then re-engage (often head-on)
+    tx = B.x + Math.cos(B.extendA) * 50; tz = B.z + Math.sin(B.extendA) * 50; ty = clampAlt(B.y + B.extendUp); spd = baseSpd * 1.25;
   } else if (toMe > 0.55) {   // defensive: in the crosshair → jink
     const wa = B.a + Math.sin(B.weave) * 1.1;
     tx = B.x + Math.cos(wa) * 40; tz = B.z + Math.sin(wa) * 40; ty = clampAlt(B.y + Math.cos(B.weave * 0.8) * 16);
     spd = baseSpd * (ph2 ? 1.25 : 1.15);
   } else {   // offensive: settle in behind and lead the shot
     const ps = playerSpeed(), lead = d / (botSpeed() + 30) * 0.5;
-    const behind = d > 45 ? 0 : 22;
+    const behind = d > 45 ? 0 : 30;
     tx = player.x - pf[0] * behind + pf[0] * ps * lead; ty = player.y - pf[1] * behind + pf[1] * ps * lead + 2; tz = player.z - pf[2] * behind + pf[2] * ps * lead;
-    spd = baseSpd * (d > 60 ? 1.3 : 1.05) * (ph2 ? 1.1 : 1);
+    spd = baseSpd * (d > 60 ? 1.3 : d > 45 ? 1.05 : 0.92) * (ph2 ? 1.08 : 1);   // settles slightly slower than you on the tail, so you can turn it around
   }
   tx = clamp(tx, -MAP + 20, MAP - 20); tz = clamp(tz, -MAP + 20, MAP - 20);
   let desired = Math.atan2(tz - B.z, tx - B.x);
@@ -3773,7 +3782,7 @@ function updateAce(dt, hostile) {
   B.x += Math.cos(B.a) * cp * spd * dt; B.z += Math.sin(B.a) * cp * spd * dt; B.y = clamp(B.y + Math.sin(B.p) * spd * dt, ALT_MIN, ALT_MAX);
 
   // --- weapons ---
-  if (engaged && state === 'playing' && B.intro <= 0 && B.cloakT <= 0 && B.ramCharge <= 0) {
+  if (engaged && state === 'playing' && B.intro <= 0 && B.cloakT <= 0 && B.ramCharge <= 0 && !(B.extendT > 0)) {
     const f = fwdOf(B), off = Math.acos(clamp((dx * f[0] + dy * f[1] + dz * f[2]) / d, -1, 1));
     if (B.burst <= 0 && B.fireCd <= 0 && d < 75 && off < 0.3) { B.burst = ph2 ? 6 : 4; B.fireCd = ph2 ? 0.9 : 1.3; }
     if (B.burst > 0 && (B.burstT -= dt) <= 0) {
@@ -3848,7 +3857,7 @@ loadCheckpoints(await Store.get('checkpoints'));
 // test hook: open the page with #titan to jump straight to 2:55
 if (true) {
   window.__skipToAce = true;
-  window.__dbg = { set: o => { if (boss) Object.assign(boss, o); player.invul = 999; player.ammo = 99; }, face: () => { if (boss) player.a = Math.atan2(boss.z - player.z, boss.x - player.x); }, msl: () => { if (!boss) return; player.a = Math.atan2(boss.z - player.z, boss.x - player.x); const m = launchMissile(player, false); m.target = boss; m.sure = true; m.life = 9; m.turn = 10; }, shoot: () => { if (!boss) return; const dx = boss.x - player.x, dy = boss.y - player.y, dz = boss.z - player.z, l = Math.hypot(dx, dy, dz), v = 80; bullets.push({ x: player.x, y: player.y, z: player.z, vx: dx / l * v, vy: dy / l * v, vz: dz / l * v, life: 1.5, enemy: false, profile: 'ballistic' }); }, hit: d => boss && hitBoss(d, player), info: () => ({ state, acePhase, boss: boss && { hp: boss.hp, max: boss.max, phase: boss.phase, dead: boss.dead, shield: boss.shieldT, flares: boss.flares, dodges: boss.dodges, cloak: boss.cloakT, ram: boss.ramT, ramCharge: boss.ramCharge, d: Math.round(dist3(boss, player)) } }) };
+  window.__dbg = { set: o => { if (boss) Object.assign(boss, o); player.invul = 999; player.ammo = 99; }, face: () => { if (boss) player.a = Math.atan2(boss.z - player.z, boss.x - player.x); }, msl: () => { if (!boss) return; player.a = Math.atan2(boss.z - player.z, boss.x - player.x); const m = launchMissile(player, false); m.target = boss; m.sure = true; m.life = 9; m.turn = 10; }, shoot: () => { if (!boss) return; const dx = boss.x - player.x, dy = boss.y - player.y, dz = boss.z - player.z, l = Math.hypot(dx, dy, dz), v = 80; bullets.push({ x: player.x, y: player.y, z: player.z, vx: dx / l * v, vy: dy / l * v, vz: dz / l * v, life: 1.5, enemy: false, profile: 'ballistic' }); }, hit: d => boss && hitBoss(d, player), info: () => ({ state, acePhase, boss: boss && { hp: boss.hp, max: boss.max, phase: boss.phase, dead: boss.dead, shield: boss.shieldT, flares: boss.flares, dodges: boss.dodges, cloak: boss.cloakT, tail: boss.tailT, extend: boss.extendT, ram: boss.ramT, ramCharge: boss.ramCharge, d: Math.round(dist3(boss, player)) } }) };
 }
 if (location.hash === '#titan') {
   window.__skipToTitan = true;
