@@ -327,8 +327,8 @@ sun.castShadow = !0, sun.shadow.mapSize.set(IS_TOUCH ? 512 : 1024, IS_TOUCH ? 51
   far: 200
 }), sun.shadow.bias = -4e-4, sun.shadow.normalBias = .3, scene.add(sun, sun.target);
 const G = {
-    sph: new THREE.SphereGeometry(1, 24, 16),
-    sphLo: new THREE.SphereGeometry(1, 10, 7),
+    sph: new THREE.SphereGeometry(1, 18, 12),
+    sphLo: new THREE.SphereGeometry(1, 8, 6),
     sphMid: new THREE.SphereGeometry(1, 16, 11),
     cyl: new THREE.CylinderGeometry(1, 1, 1, 20),
     box: new THREE.BoxGeometry(1, 1, 1),
@@ -1184,17 +1184,32 @@ const seaTex = canvasTex(256, (g, s2) => {
   }));
 sea.rotation.x = -Math.PI / 2, sea.receiveShadow = !0, scene.add(sea);
 
+// Instanced scenery is split into spatial chunks so the camera and the sun's shadow camera cull what they cannot see
+// (one InstancedMesh for the whole map is never culled and was drawn twice a frame, shadows included).
+const CHUNK = 260;
 function instanced(geo, mat, list, cast = !0) {
-  const im = new THREE.InstancedMesh(geo, mat, list.length),
+  const g = new THREE.Group(), buckets = new Map, where = [],
     m4 = new THREE.Matrix4,
     q = new THREE.Quaternion,
     e = new THREE.Euler,
     v = new THREE.Vector3,
     sc = new THREE.Vector3,
     col = new THREE.Color;
-  return list.forEach((d, i) => {
-    e.set(0, d.ry || 0, 0), q.setFromEuler(e), m4.compose(v.set(d.x, d.y, d.z), q, sc.set(d.sx, d.sy, d.sz)), im.setMatrixAt(i, m4), im.setColorAt(i, col.set(d.c === void 0 ? 16777215 : d.c))
-  }), im.castShadow = cast, im.receiveShadow = !0, scene.add(im), im
+  list.forEach((d, i) => {
+    const k = Math.floor(d.x / CHUNK) + "," + Math.floor(d.z / CHUNK);
+    buckets.has(k) || buckets.set(k, []), buckets.get(k).push(i)
+  });
+  for (const ids of buckets.values()) {
+    const im = new THREE.InstancedMesh(geo, mat, ids.length);
+    ids.forEach((i, k) => {
+      const d = list[i];
+      e.set(0, d.ry || 0, 0), q.setFromEuler(e), m4.compose(v.set(d.x, d.y, d.z), q, sc.set(d.sx, d.sy, d.sz)), im.setMatrixAt(k, m4), im.setColorAt(k, col.set(d.c === void 0 ? 16777215 : d.c)), where[i] = [im, k]
+    }), im.computeBoundingSphere(), im.castShadow = cast, im.receiveShadow = !0, g.add(im)
+  }
+  return g.material = mat, g.instanceColor = null, g.setColorAt = (i, c) => {
+    const [im, k] = where[i];
+    im.setColorAt(k, c), im.instanceColor.needsUpdate = !0
+  }, scene.add(g), g
 }
 const ISLANDS = [],
   WORLD = {};
