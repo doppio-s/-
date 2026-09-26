@@ -291,13 +291,13 @@ let renderer;
 try {
   renderer = new THREE.WebGLRenderer({
     canvas: $("c"),
-    antialias: !0,
+    antialias: !IS_TOUCH,   // phones: the pixel ratio already smooths edges; MSAA costs too much there
     powerPreference: "high-performance"
   })
 } catch (e) {
   throw $("loading").textContent = "WebGL is not available in this browser.", e
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.5 : 2)), renderer.shadowMap.enabled = !0, renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.25 : 1.5)), renderer.shadowMap.enabled = !0, renderer.shadowMap.type = THREE.PCFShadowMap;
 const ALT = 20;
 // playable half-size; the world, obstacles and space field are generated to match
 const MAP_BASE = 560, MAP_K = MAP_BASE / 280;
@@ -318,7 +318,7 @@ const camera = new THREE.PerspectiveCamera(62, 1, .5, 700),
   hemi = new THREE.HemisphereLight(16777215, 7317720, 1.45);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(16774880, 2.2);
-sun.castShadow = !0, sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048), Object.assign(sun.shadow.camera, {
+sun.castShadow = !0, sun.shadow.mapSize.set(IS_TOUCH ? 512 : 1024, IS_TOUCH ? 512 : 1024), Object.assign(sun.shadow.camera, {
   left: -55,
   right: 55,
   top: 55,
@@ -1363,7 +1363,7 @@ withSeed(20240925, function() {   // seeded so every device builds the same worl
   WORLD.posts = instanced(G.cyl, white, posts), WORLD.tops = instanced(G.sphLo, white, tops)
 });
 const MAXB = 480,
-  MAXP = 800,
+  MAXP = 520,
   bulletMesh = new THREE.InstancedMesh(G.sphLo, new THREE.MeshBasicMaterial({
     color: 16777215
   }), MAXB);
@@ -2211,7 +2211,7 @@ function fire(from, isEnemy, aimAt) {
 
 // who fired: shown in the hit log so every attack's damage can be checked
 function srcName(o) {
-  return o.src || (o.titan ? "TITAN" : o.ace && o.boss ? "FALCON ZERO" : o.carrier ? "LEVIATHAN" : o.boss ? "SKY FORTRESS" : o.bomber ? "BOMBER TAIL GUN" : o.squad ? "SQUADRON ACE" : o.kind === "ace" ? "ACE FIGHTER" : o.heavy ? "HEAVY FIGHTER" : o.airframe ? o.airframe.toUpperCase() : "FIGHTER");
+  return o.src || (o.titan ? "TITAN" : o.ace && o.boss ? "FALCON ZERO" : o.dnHunt ? o.elite ? "FALCON X" : "HUNTER" : o.carrier ? "LEVIATHAN" : o.boss ? "SKY FORTRESS" : o.bomber ? "BOMBER TAIL GUN" : o.squad ? "SQUADRON ACE" : o.kind === "ace" ? "ACE FIGHTER" : o.heavy ? "HEAVY FIGHTER" : o.airframe ? o.airframe.toUpperCase() : "FIGHTER");
 }
 function orb(x, y, z, dx, dy, dz, spd, life = 4.5) {
   if (bullets.length >= MAXB) return;
@@ -2807,6 +2807,7 @@ function updateBots(dt, hostile) {
       updateBomber(b, dt, hostile);
       continue
     }
+    if (b.dnHunt && dnHunterStep(b, dt, hostile)) continue;
     if (b.stun > 0) {
       b.stun -= dt;
       const bs0 = botSpeed() * b.spd * .45,
@@ -2888,6 +2889,7 @@ function hitBot(b, dmg) {
 }
 
 function killBot(b) {
+  b.elite && !b.dead && banner('FALCON X DOWN', '+2500 PTS · ANOTHER ONE WILL COME', '#ffd24a');
   b.dead || (b.dead = !0, kills++, gainXp(12), runPlaneKills++, awardKill(b.x, b.y, b.z, b.pts), waveKill(b), explode(b.x, b.y, b.z, b.heavy ? 1.6 : 1), dist3(b, player) < 60 && (shake = Math.max(shake, .16)), removeBot(b), Sound.sfxBoom(), b.kind === "ace" ? spawnPickup("missile", b.x, b.z, clampAlt(b.y)) : (b.heavy || Math.random() < .45) && spawnPickup("ammo", b.x, b.z, clampAlt(b.y)), updateHud(!0))
 }
 
@@ -3419,7 +3421,7 @@ function updateAimUI() {
   for (const b of bots) Math.hypot(b.x - player.x, b.z - player.z) < 170 && list.push({
     o: b,
     cls: b.bomber ? "bomb" : b.kind === "ace" ? "ace" : "",
-    lbl: b.bomber ? "BOMBER " : b.airframe ? b.specialCharge > 0 ? "CHARGING " : b.airframe.toUpperCase() + " " : b.kind === "ace" ? "ACE " : b.heavy ? "HEAVY " : ""
+    lbl: b.dnHunt && b.elite ? "FALCON X " : b.bomber ? "BOMBER " : b.airframe ? b.specialCharge > 0 ? "CHARGING " : b.airframe.toUpperCase() + " " : b.kind === "ace" ? "ACE " : b.heavy ? "HEAVY " : ""
   });
   for (const e of dnMarks()) list.push(e);
   for (const t of turrets) !t.dead && !t.carrier && (t.core ? boss && boss.phase === 2 : t.strike || t.sCore || Math.hypot(t.x - player.x, t.z - player.z) < 110) && list.push(t.core ? {
@@ -3577,9 +3579,9 @@ let smDt = 1 / 60, perfAvg = 1 / 60, perfT = 0, perfLvl = 0;
 function perfGovern(rf) {
   if (state !== "playing") return;
   perfAvg += (rf - perfAvg) * .05, perfT += rf;
-  if (perfT < 2.5 || perfAvg < .022 || perfLvl >= 2) return;
+  if (perfT < 1.5 || perfAvg < .02 || perfLvl >= 2) return;
   perfT = 0, perfLvl++;
-  if (perfLvl === 1) renderer.setPixelRatio(1), resize();
+  if (perfLvl === 1) renderer.setPixelRatio(Math.min(1, window.devicePixelRatio || 1) * (IS_TOUCH ? .85 : 1)), resize();
   else sun.castShadow = !1, renderer.shadowMap.enabled = !1, scene.traverse(o => { o.material && (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = !0); });
 }
 function frame(now) {
@@ -4428,7 +4430,7 @@ function renderAircraftOffer() {
   $("aircraftOffer").classList.remove("hidden");
   const special = abilityInfoOf(p), mLv = masteryLevel(p.id), mXp = masteryOf(p.id).xp, mPrev = mLv > 1 ? masteryNeed(mLv - 1) : 0, mNext = mLv < 10 ? masteryNeed(mLv) : mXp, nextU = MASTERY_UNLOCKS.find(u => u[0] > mLv),
     mastery = `<div class="mastery"><b>\u201C${CALLSIGNS[p.id] || p.name}\u201D \xB7 PILOT LV ${mLv}</b><div class="mbar"><i style="width:${mLv >= 10 ? 100 : Math.round((mXp - mPrev) / Math.max(1, mNext - mPrev) * 100)}%"></i></div><small>${mLv >= 10 ? "LEGEND \xB7 every unlock earned" : `${mXp - mPrev} / ${mNext - mPrev} XP \xB7 next: ${nextU[1]} at LV ${nextU[0]}`} \xB7 ${masteryOf(p.id).kills} kills</small></div>`;
-  $("aircraftOffer").innerHTML = `${mastery}<span class="offerRole">${story.role}</span><p>${story.detail}</p><div class="abilityInfo"><b>${special.name} \xB7 Q</b><p>${special.description}</p>${tierOf(p) > .05 ? `<small>GRADE ${tierGrade(tierOf(p))} \xB7 +${Math.round((abilPowOf(p) - 1) * 100)}% ability power</small><br>` : ""}<small>${special.cooldown}s cooldown</small></div><button class="btn offerBuy" data-plane="${p.id}" ${disabled?"disabled":""}>${label}</button><small>${note}</small>`;
+  $("aircraftOffer").innerHTML = `<button class="btn offerBuy" data-plane="${p.id}" ${disabled?"disabled":""}>${label}</button>${note ? `<small class="offerNote">${note}</small>` : ""}${mastery}<span class="offerRole">${story.role}</span><p>${story.detail}</p><div class="abilityInfo"><b>${special.name} \xB7 Q</b><p>${special.description}</p>${tierOf(p) > .05 ? `<small>GRADE ${tierGrade(tierOf(p))} \xB7 +${Math.round((abilPowOf(p) - 1) * 100)}% ability power</small><br>` : ""}<small>${special.cooldown}s cooldown</small></div>`;
   const mod = partStats(),
     values = [
       ["GRADE", tierGrade(tierOf(p))],
@@ -5712,29 +5714,39 @@ const carrierLock = () => carrierPhase === "intro" || carrierPhase === "fight",
 
 // ================= v8: IRON LEVIATHAN — a 4 km flying dreadnought with a maze inside =================
 // Ship-local frame: +x toward the bow, z across, y up; the ship never turns (local = world - centre).
-const DN = { SX: 1000, SY: 420, SZ: 0, BOW: 2600, STERN: -1400, HW: 1200, TOP: 150, DECK: 30, CELL: 60, MX0: -1400, MZ0: -300 };
+const DN = { SX: 1000, SY: 420, SZ: 0, BOW: 2600, STERN: -1400, HW: 1200, TOP: 150, DECK: 40, CELL: 60, MX0: -600, MZ0: -420 };
+// the flight deck: a hangar hall inside the stern, 790 x 840 x 280, with parked fighters and walkers; the maze opens off its bow wall
+const DN_HGR = { x0: -1392, x1: -600, hz: 420, hy: 140, mw: 120 };
+const DN_PILLARS = [[-1180, -230], [-1180, 230], [-860, -230], [-860, 230]];
 // '#' wall · '.' corridor · 'R' reactor hall · 'D' blast door · 'L' laser curtain · 'T' ceiling turret ; entrance at the stern (column 0)
+// 'P' supply cache (pickup) · 'H' hunter hatch; the reactor sits at the far (bow) end, ~40 cells of corridor from the mouth
 const MAZE = [
-  '################',
-  '##.....#.......#',
-  '##.###.#.#####.#',
-  '##.#...#...#RRR#',
-  '..T.####.#.DRRR#',
-  '..#.L.T....#RRR#',
-  '##.#.#######.#.#',
-  '##...#..D..L...#',
-  '######.###.#####',
-  '################'];
-const DN_GW = 16, DN_GH = 10;
+  '##########################',
+  '#P....#.....T.....#....PH#',
+  '#.###.#.###.#####.#.##.###',
+  '#...#...#.#.....D.#..#...#',
+  '###.#####.#.###.#.##.#D#P#',
+  '#...L.....#.T.#..#T.#RRR##',
+  '..T.#.###.#.#.#.###.DRRR##',
+  '..#.#.#P#...#...#.#.#RRR##',
+  '#.#.#.#.#####.###.#.###.##',
+  '#.#...#...T...#.L.#...#..#',
+  '#.#####.#####.#.#####.##.#',
+  '#.H...D.....#...T.......##',
+  '#.#########.#.#########P##',
+  '##########################'];
+const DN_GW = 26, DN_GH = 14, DN_MOUTH = [[0, 6], [0, 7]];
 const DN_TOWER = { x0: -1300, x1: -950, hz: 260, y1: 520 };
-const DN_SHAFT = { x0: -680, x1: -500, z0: -120, z1: 60 };   // the reactor hall's vent, straight up through the top plating
-const DN_ROOM = { x: -590, z: -30 };
+const DN_SHAFT = { x0: 660, x1: 840, z0: -120, z1: 60 };   // the reactor hall's vent, straight up through the top plating
+const DN_ROOM = { x: 750, z: -30 };
 const dnHalfW = x => DN.HW * (DN.BOW - x) / (DN.BOW - DN.STERN);
 const dnLocal = o => ({ x: o.x - DN.SX, y: o.y - DN.SY, z: o.z - DN.SZ });
 const dnWorld = (x, y, z) => ({ x: x + DN.SX, y: y + DN.SY, z: z + DN.SZ });
 const dnCellC = (i, j) => [DN.MX0 + DN.CELL * (i + 0.5), DN.MZ0 + DN.CELL * (j + 0.5)];
 let dnArena = false, dnCamK = 1, dnState = null;
 function dnCell(lx, lz) { const i = Math.floor((lx - DN.MX0) / DN.CELL), j = Math.floor((lz - DN.MZ0) / DN.CELL); return i >= 0 && i < DN_GW && j >= 0 && j < DN_GH ? [i, j] : null; }
+function dnInHangarL(l) { return l.x > DN_HGR.x0 && l.x < DN_HGR.x1 && Math.abs(l.z) < DN_HGR.hz && Math.abs(l.y) < DN_HGR.hy; }
+const dnInHangar = o => dnInHangarL(dnLocal(o));
 function dnInHull(l) { return l.x >= DN.STERN && l.x <= DN.BOW && Math.abs(l.z) <= dnHalfW(l.x) && Math.abs(l.y) <= DN.TOP; }
 function dnDoorOpenness(key) { const d = dnState && dnState.doors[key]; return d ? d.open : 1; }
 function dnMetal(o) {
@@ -5743,11 +5755,12 @@ function dnMetal(o) {
   if (l.x > DN_TOWER.x0 && l.x < DN_TOWER.x1 && Math.abs(l.z) < DN_TOWER.hz && l.y >= DN.TOP && l.y < DN_TOWER.y1) return true;
   if (!dnInHull(l)) return false;
   if (dnState.lidOpen && l.y > -DN.DECK && l.x > DN_SHAFT.x0 && l.x < DN_SHAFT.x1 && l.z > DN_SHAFT.z0 && l.z < DN_SHAFT.z1) return false;
+  if (dnInHangarL(l)) { for (const [px, pz] of DN_PILLARS) if (Math.abs(l.x - px) < 18 && Math.abs(l.z - pz) < 18) return true; return false; }
+  if (l.x <= DN_HGR.x0 && Math.abs(l.z) < DN_HGR.mw && Math.abs(l.y) < DN.DECK) return !dnState.hangarOpen;   // the stern mouth
   if (Math.abs(l.y) > DN.DECK) return true;
   const c = dnCell(l.x, l.z); if (!c) return true;
   const ch = MAZE[c[1]][c[0]];
   if (ch === '#') return true;
-  if (c[0] === 0 && !dnState.hangarOpen) return true;
   if (ch === 'D' && dnDoorOpenness(c[0] + ',' + c[1]) < 0.6) return true;
   return false;
 }
@@ -5775,15 +5788,24 @@ function makeDreadnought() {
   const W = [[DN.BOW, 0], [DN.STERN, DN.HW], [DN.STERN, -DN.HW]];
   const mazeX1 = DN.MX0 + DN.CELL * DN_GW, mazeZ0 = DN.MZ0, mazeZ1 = DN.MZ0 + DN.CELL * DN_GH;
   // top plating (with the reactor vent), bottom plating, and the deck layer notched for the maze block
-  g.add(dnSlab(W, [[[DN_SHAFT.x0, DN_SHAFT.z0], [DN_SHAFT.x1, DN_SHAFT.z0], [DN_SHAFT.x1, DN_SHAFT.z1], [DN_SHAFT.x0, DN_SHAFT.z1]]], DN.DECK, DN.TOP, hull));
-  g.add(dnSlab(W, [], -DN.TOP, -DN.DECK, under));
-  g.add(dnSlab([[DN.BOW, 0], [DN.STERN, DN.HW], [DN.STERN, mazeZ1], [mazeX1, mazeZ1], [mazeX1, mazeZ0], [DN.STERN, mazeZ0], [DN.STERN, -DN.HW]], [], -DN.DECK, DN.DECK, hull));
+  const H = DN_HGR, hRect = [[H.x0, -H.hz], [H.x1, -H.hz], [H.x1, H.hz], [H.x0, H.hz]];
+  g.add(dnSlab(W, [[[DN_SHAFT.x0, DN_SHAFT.z0], [DN_SHAFT.x1, DN_SHAFT.z0], [DN_SHAFT.x1, DN_SHAFT.z1], [DN_SHAFT.x0, DN_SHAFT.z1]], hRect], DN.DECK, DN.TOP, hull));
+  g.add(dnSlab(W, [hRect], -DN.TOP, -DN.DECK, under));
+  g.add(dnSlab(hRect, [], H.hy, DN.TOP, hull));   // flight-deck roof
+  g.add(dnSlab(hRect, [], -DN.TOP, -H.hy, new THREE.MeshStandardMaterial({ color: 0x39414d, roughness: 0.85, emissive: 0x0c1018 })));   // flight-deck floor
+  g.add(dnSlab([[DN.BOW, 0], [DN.STERN, DN.HW], [DN.STERN, H.mw], [H.x0, H.mw], [H.x0, H.hz], [mazeX1, mazeZ1], [mazeX1, mazeZ0], [H.x0, -H.hz], [H.x0, -H.mw], [DN.STERN, -H.mw], [DN.STERN, -DN.HW]], [], -DN.DECK, DN.DECK, hull));
+  // flight deck dressing: pillars, runway and ceiling lights
+  for (const [px, pz] of DN_PILLARS) { part(G.box, wallM, 36, H.hy * 2, 36, px, 0, pz, g); part(G.box, glowB, 37, 3, 37, px, H.hy - 30, pz, g); part(G.box, glowB, 37, 3, 37, px, -H.hy + 30, pz, g); }
+  const deckLights = [], runway = [];
+  for (let x = H.x0 + 40; x < H.x1 - 20; x += 80) for (let z = -H.hz + 70; z < H.hz; z += 140) deckLights.push([x, H.hy - 1, z, 40, 1, 6]);
+  for (let x = H.x0 + 20; x < H.x1 - 10; x += 36) { runway.push([x, -H.hy + 0.6, 0, 18, 1, 3]); for (const sd of [-1, 1]) runway.push([x, -H.hy + 0.6, sd * 110, 6, 1, 6]); }
+  g.add(dnInstanced(G.box, glowB, deckLights)); g.add(dnInstanced(G.box, glowY, runway));
   // maze walls, ceiling lights, and yellow guide lights along the way to the reactor
   const walls = [], lights = [], guide = [];
   const path = dnPath();
   for (let j = 0; j < DN_GH; j++) for (let i = 0; i < DN_GW; i++) {
     const ch = MAZE[j][i], [x, z] = dnCellC(i, j);
-    if (ch === '#') walls.push([x, 0, z, DN.CELL, DN.CELL * 1.0, DN.CELL]);
+    if (ch === '#') walls.push([x, 0, z, DN.CELL, DN.DECK * 2, DN.CELL]);
     else if (ch !== 'R') lights.push([x, DN.DECK - 0.8, z, 30, 1, 5]);
   }
   for (const [i, j] of path) { const [x, z] = dnCellC(i, j); guide.push([x, -DN.DECK + 0.6, z, 6, 1, 6]); }
@@ -5793,7 +5815,7 @@ function makeDreadnought() {
   // reactor hall: dark ring walls with glowing seams
   for (const a of [0, 1, 2, 3]) { const s = part(G.box, glowR, a % 2 ? 2 : 176, 3, a % 2 ? 176 : 2, DN_ROOM.x + (a === 1 ? 88 : a === 3 ? -88 : 0), 0, DN_ROOM.z + (a === 0 ? 88 : a === 2 ? -88 : 0), g); s.castShadow = false; }
   // stern hangar mouth: glowing frame + armored door
-  const mouthZ = dnCellC(0, 4)[1] - DN.CELL / 2, mouthW = DN.CELL * 2;
+  const mouthZ = -DN_HGR.mw, mouthW = DN_HGR.mw * 2;
   for (const [y, h] of [[DN.DECK + 2, 4], [-DN.DECK - 2, 4]]) part(G.box, glowY, 6, h, mouthW + 12, DN.STERN - 2, y, mouthZ + mouthW / 2, g);
   for (const z of [mouthZ - 4, mouthZ + mouthW + 4]) part(G.box, glowY, 6, DN.DECK * 2 + 8, 4, DN.STERN - 2, 0, z, g);
   const door = part(G.box, M(0x8a93a2, { metalness: 0.5 }), 6, DN.DECK * 2, mouthW, DN.STERN - 1, 0, mouthZ + mouthW / 2, g);
@@ -5828,7 +5850,7 @@ function makeDreadnought() {
 }
 // shortest route from the stern mouth to the reactor hall (for the floor guide lights)
 function dnPath() {
-  const start = [[0, 4], [0, 5]], seen = new Map(), q = [];
+  const start = DN_MOUTH, seen = new Map(), q = [];
   for (const s of start) { seen.set(s + '', null); q.push(s); }
   let end = null;
   while (q.length) {
@@ -5843,6 +5865,24 @@ function dnPath() {
   const out = []; for (let c = end; c; c = seen.get(c + '')) out.push(c);
   return out.reverse();
 }
+function dnWalkerMesh() {   // a four-legged walker: box body, head on a neck, legs swinging from hip pivots
+  const g = new THREE.Group(), armor = M(0x8d96a3, { metalness: 0.4 }), dark = M(0x3a414d), head = new THREE.Group(), legs = [];
+  part(G.box, armor, 70, 24, 26, 0, 0, 0, g);   // body (children[0]: goes grey when wrecked)
+  part(G.box, dark, 60, 6, 28, 0, -14, 0, g);
+  part(G.box, dark, 14, 8, 10, 38, -2, 0, g);   // neck
+  head.position.set(50, -4, 0); g.add(head);
+  part(G.box, armor, 22, 14, 16, 0, 0, 0, head);
+  part(G.box, new THREE.MeshBasicMaterial({ color: 0xff3b3b }), 1, 3, 12, 11.2, 2, 0, head);
+  for (const sd of [-1, 1]) { const b = part(G.cyl, dark, 2, 14, 2, 12, -5, sd * 5, head); b.rotation.z = Math.PI / 2; }
+  for (const [lx, lz] of [[24, 13], [24, -13], [-24, 13], [-24, -13]]) {
+    const hip = new THREE.Group(); hip.position.set(lx, -12, lz); g.add(hip);
+    part(G.box, armor, 8, 34, 7, 0, -17, 0, hip); part(G.box, dark, 6, 34, 6, 0, -50, 0, hip); part(G.box, dark, 12, 4, 12, 0, -68, 0, hip);
+    legs.push(hip);
+  }
+  g.userData = { head, barrels: new THREE.Group(), legs };
+  return g;
+}
+function dnParkedMesh() { const g = new THREE.Group(), pl = makePlane(0x5b6674, 0xc9d1dc, Math.random() < 0.5 ? 'classic' : 'falcon', true); pl.scale.multiplyScalar(2.2); g.add(pl); g.userData = { head: new THREE.Group(), barrels: new THREE.Group() }; return g; }
 function dnPartMesh(kind) {
   const g = new THREE.Group(), head = new THREE.Group();
   if (kind === 'gen') {
@@ -5869,7 +5909,7 @@ function dnPartMesh(kind) {
 }
 const DN_GENS = [[-1150, -520], [-1150, 520], [-800, -420], [-800, 420]];
 const DN_BAYS = [[-1050, -820], [-1050, 820], [-620, -700], [-620, 700], [-250, -480], [-250, 480]];
-const DN_GUNS_TOP = [[-1350, -420], [-1350, 420], [-950, -640], [-950, 640], [-700, -220], [-700, 160], [-420, -620], [-420, 620], [-150, -300], [-150, 300], [150, 0], [-1380, 0]];
+const DN_GUNS_TOP = [[-1350, -420], [-1350, 420], [-950, -640], [-950, 640], [-700, -220], [-700, 160], [-420, -620], [-420, 620], [-150, -520], [-150, 520], [320, 0], [-1380, 0]];
 const DN_GUNS_BOT = [[-1200, -300], [-1200, 300], [-700, -500], [-700, 500], [-300, 0]];
 
 function dnSetArena(on) {
@@ -5897,23 +5937,23 @@ function spawnCarrier() {
   // blast doors and laser curtains
   for (const d of Object.values(dnState.doors)) {
     const [x, z] = dnCellC(d.i, d.j), alongX = MAZE[d.j][d.i - 1] !== '#' || MAZE[d.j][d.i + 1] !== '#';
-    d.mesh = part(G.box, M(0x8a93a2, { metalness: 0.5, emissive: 0x331100 }), alongX ? 6 : DN.CELL, DN.CELL, alongX ? DN.CELL : 6, x, 0, z, boss.mesh);
-    const stripe = part(G.box, new THREE.MeshBasicMaterial({ color: 0xffb13b }), alongX ? 6.5 : DN.CELL, 4, alongX ? DN.CELL : 6.5, 0, -24, 0, d.mesh); stripe.scale.set(1 / (alongX ? 6 : DN.CELL), 4 / DN.CELL, 1 / (alongX ? DN.CELL : 6));
+    d.mesh = part(G.box, M(0x8a93a2, { metalness: 0.5, emissive: 0x331100 }), alongX ? 6 : DN.CELL, DN.DECK * 2, alongX ? DN.CELL : 6, x, 0, z, boss.mesh);
+    const stripe = part(G.box, new THREE.MeshBasicMaterial({ color: 0xffb13b }), 1, 1, 1, 0, -0.4, 0, d.mesh); stripe.scale.set(1.08, 4 / (DN.DECK * 2), 1.08);
   }
   for (let j = 0; j < DN_GH; j++) for (let i = 0; i < DN_GW; i++) if (MAZE[j][i] === 'L') {
     const [x, z] = dnCellC(i, j), alongX = MAZE[j][i - 1] !== '#', grp = new THREE.Group(); grp.position.set(x, 0, z); boss.mesh.add(grp);
     const mat = new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: 0.9 });
-    for (let k = -2; k <= 2; k++) { const beam = new THREE.Mesh(G.cyl, mat); beam.scale.set(0.8, DN.CELL, 0.8); beam.position.set(alongX ? 0 : k * 11, 0, alongX ? k * 11 : 0); grp.add(beam); }
+    for (let k = -2; k <= 2; k++) { const beam = new THREE.Mesh(G.cyl, mat); beam.scale.set(0.8, DN.DECK * 2, 0.8); beam.position.set(alongX ? 0 : k * 11, 0, alongX ? k * 11 : 0); grp.add(beam); }
     dnState.lasers.push({ i, j, grp, mat, t: rand(0, 3), on: false });
   }
   const mk = (kind, lx, ly, lz, hp, hitR, pts, extra = {}) => {
-    const mesh = kind === 'gun' || kind === 'iturret' ? makeTurret() : dnPartMesh(kind);
+    const mesh = kind === 'gun' || kind === 'iturret' ? makeTurret() : kind === 'parked' ? dnParkedMesh() : dnPartMesh(kind);
     const w = dnWorld(lx, ly, lz); mesh.position.set(w.x, w.y, w.z);
-    if (ly < 0 && kind !== 'pylon' && kind !== 'core') mesh.rotation.x = Math.PI;   // hangs under the hull / from a ceiling
+    if (ly < 0 && kind !== 'pylon' && kind !== 'core' && kind !== 'parked') mesh.rotation.x = Math.PI;   // hangs under the hull / from a ceiling
     if (kind === 'gun') mesh.scale.setScalar(2.4);
     scene.add(mesh);
     const t = { x: w.x, y: w.y + (ly < 0 ? -3 : 3), z: w.z, hp, hpMax: hp, cd: rand(1, 2.5), dead: false, mesh, scale: hitR / 3, hitR, pts, carrier: true,
-      noFlak: !(kind === 'gun' || kind === 'iturret'), dnKind: kind, core: kind === 'core', inner: kind === 'pylon' || kind === 'core' || kind === 'iturret', ...extra };
+      noFlak: !(kind === 'gun' || kind === 'iturret'), dnKind: kind, core: kind === 'core', inner: kind === 'pylon' || kind === 'core' || kind === 'iturret' || kind === 'parked', ...extra };
     turrets.push(t); if (kind === 'core') boss.core = t; else boss.parts.push(t);
     return t;
   };
@@ -5924,11 +5964,23 @@ function spawnCarrier() {
   for (let j = 0; j < DN_GH; j++) for (let i = 0; i < DN_GW; i++) if (MAZE[j][i] === 'T') { const [x, z] = dnCellC(i, j); mk('iturret', x, DN.DECK - 4, z, 10, 4, 250); }
   for (const [ox, oz] of [[-60, -60], [60, -60], [-60, 60], [60, 60]]) mk('pylon', DN_ROOM.x + ox, 0, DN_ROOM.z + oz, 22, 8, 900);
   mk('core', DN_ROOM.x, 0, DN_ROOM.z, coreHp, 22, 0);
+  // the flight deck: rows of parked fighters (they take off to chase you) and walkers stomping across the floor
+  const H = DN_HGR, foot = -H.hy + 68 + 12;
+  for (let x = H.x0 + 90; x < H.x1 - 60; x += 95) for (const sd of [-1, 1]) {
+    const t = mk('parked', x, -H.hy + 6, sd * 340, 3, 7, 250); t.mesh.rotation.y = sd > 0 ? Math.PI / 2 : -Math.PI / 2; t.noFlak = true;
+  }
+  dnState.walkers = [];
+  for (const [wx, wz, dir] of [[-1250, -150, 1], [-800, 170, -1], [-1020, 330, 1]]) {
+    const mesh = dnWalkerMesh(), w0 = dnWorld(wx, foot, wz); mesh.position.set(w0.x, w0.y, w0.z); mesh.rotation.y = dir > 0 ? 0 : Math.PI; scene.add(mesh);
+    const t = { x: w0.x, y: w0.y, z: w0.z, hp: 45, hpMax: 45, cd: rand(1, 2), dead: false, mesh, scale: 7, hitR: 24, pts: 3000, carrier: true, noFlak: true, dnKind: 'walker', inner: true, wx, wz, dir, foot, step: rand(0, 6), fireCd: rand(1, 3) };
+    turrets.push(t); boss.parts.push(t); dnState.walkers.push(t);
+  }
   $('bossBar').classList.remove('ace', 'shield'); $('bossBar').classList.add('titan', 'shield'); $('bossBar').classList.remove('hidden');
   carrierBar();
   banner('IRON LEVIATHAN', 'KNOCK OUT THE 4 SHIELD GENERATORS', '#69c8ff');
   toast('Launch bays keep sending fighters — destroy them to stop it');
   Sound.tone(30, 3, 'sawtooth', 0.28, 60); Sound.sfxBoom();
+  { let k = 0; for (let j = 0; j < DN_GH; j++) for (let i = 0; i < DN_GW; i++) if (MAZE[j][i] === 'P') { const [x, z] = dnCellC(i, j), w = dnWorld(x, 0, z); spawnPickup(['heart', 'missile', 'ammo'][k++ % 3], w.x, w.z, w.y); } }
   for (let i = 0; i < 4; i++) spawnPickup('ammo', player.x + rand(40, 160), player.z + rand(-80, 80), player.y + rand(-20, 20));
   spawnPickup('missile', player.x + 120, player.z, player.y);
 }
@@ -6025,13 +6077,13 @@ function updateCarrier(dt, hostile) {
   if (B.intro > 0) B.intro -= dt;
   // ---- hard collisions for the player: slide along walls, crash damage ----
   if (state === 'playing' && player.alive) {
-    if (dnMetal(player)) {
+    if (dnMetal(player) || dnWalkerAt(player)) {
       const p = S.prev, nx = player.x, ny = player.y, nz = player.z;
       player.x = p.x; player.y = p.y; player.z = p.z;
       if (!dnMetal({ x: nx, y: p.y, z: p.z })) player.x = nx;
       if (!dnMetal({ x: player.x, y: p.y, z: nz })) player.z = nz;
       if (!dnMetal({ x: player.x, y: ny, z: player.z })) player.y = ny;
-      if (dnMetal(player)) { player.x = p.x; player.y = p.y; player.z = p.z; }
+      if (dnMetal(player) || dnWalkerAt(player)) { player.x = p.x; player.y = p.y; player.z = p.z; }
       shieldTime > 0 || (player.ve = Math.max(.45, (player.ve || 1) * .8));
       if (player.invul <= 0) { shieldTime > 0 ? popup(player.x, player.y + 2, player.z, 'SHIELD') : damage(!0, 'HULL!'); }
       shake = Math.max(shake, 0.25);
@@ -6040,10 +6092,10 @@ function updateCarrier(dt, hostile) {
     S.prev = { x: player.x, y: player.y, z: player.z };
   }
   const inside = dnInside(player);
-  dnCamK = lerp(dnCamK, inside ? 0.55 : 1, Math.min(1, dt * 4));
+  dnCamK = lerp(dnCamK, dnInHangar(player) ? 0.85 : inside ? 0.55 : 1, Math.min(1, dt * 4));
   // shots and enemies against the hull
   for (const b of bullets) if (b.life > 0 && dnMetal(b)) b.life = 0;
-  for (const b of bots) if (!b.dead && dnMetal(b)) crashBot(b, 'SMASHED!');
+  for (const b of bots) if (!b.dead && !b.dnHunt && dnMetal(b)) crashBot(b, 'SMASHED!');
   // door + hatch animation
   ud.door.position.y = lerp(ud.door.position.y, S.hangarOpen ? DN.DECK * 2 + 4 : 0, Math.min(1, dt * 1.5));
   ud.lid.position.x = lerp(ud.lid.position.x, S.lidOpen ? (DN_SHAFT.x0 + DN_SHAFT.x1) / 2 + 190 : (DN_SHAFT.x0 + DN_SHAFT.x1) / 2, Math.min(1, dt * 1.2));
@@ -6051,7 +6103,7 @@ function updateCarrier(dt, hostile) {
   for (const d of Object.values(S.doors)) {   // blast doors cycle: open 2.4s, shut 1.4s
     d.t = (d.t + dt) % 4.2;
     const want = d.t < 2.4 ? 1 : d.t < 2.7 ? 1 - (d.t - 2.4) / 0.3 : d.t < 3.9 ? 0 : (d.t - 3.9) / 0.3;
-    d.open = want; d.mesh.position.y = d.open * (DN.CELL - 4);
+    d.open = want; d.mesh.position.y = d.open * (DN.DECK * 2 - 4);
     if (!d.warn && d.t > 2.0 && d.t < 2.4 && inside && dist3(dnWorld(...(([x, z]) => [x, 0, z])(dnCellC(d.i, d.j))), player) < 160) { d.warn = true; Sound.tone(520, 0.12, 'square', 0.05); }
     if (d.t < 2.0) d.warn = false;
   }
@@ -6064,8 +6116,10 @@ function updateCarrier(dt, hostile) {
   // core visuals
   if (B.core && !B.core.dead) { const h = B.core.mesh.userData.head; h.rotation.y += dt * 0.8; h.rotation.x += dt * 0.5; }
   for (const t of B.parts) if (t.dnKind === 'gen' && !t.dead) t.mesh.userData.head.rotation.y += dt * 0.6;
+  dnUpdateDeck(dt, hostile && player.alive && state === 'playing' && !playerHidden() && !(B.intro > 0));
   // hint + phase checks
-  if (B.phase === 2 && inside && !S.enteredMsg) { S.enteredMsg = true; banner('INSIDE THE LEVIATHAN', 'FOLLOW THE YELLOW LIGHTS', '#ffb13b'); }
+  if (B.phase >= 2 && dnInHangar(player) && !S.deckMsg) { S.deckMsg = true; banner('THE FLIGHT DECK', 'WALKERS BELOW · THE REACTOR IS PAST THE FAR WALL', '#ffb13b'); }
+  if (B.phase === 2 && dnPlayerCell() && !S.enteredMsg) { S.enteredMsg = true; banner('INTO THE CORRIDORS', 'FOLLOW THE YELLOW LIGHTS', '#ffb13b'); }
   if (B.phase === 3 && dnInHall(player) && !S.hallMsg) { S.hallMsg = true; toast('Lock on to the CORE and fire!'); }
   if (B.phase === 4) {
     S.escapeT -= dt; carrierBar();
@@ -6076,6 +6130,7 @@ function updateCarrier(dt, hostile) {
   }
   // enemy activity
   const act = hostile && player.alive && state === 'playing' && !playerHidden() && !(B.intro > 0);
+  dnUpdateHunters(dt, act);
   if (act && B.phase < 4) {
     for (const t of B.parts) {
       if (t.dnKind !== 'bay' || t.dead) continue;   // launch bays push fighters out
@@ -6102,15 +6157,153 @@ function dnMarks() {   // objective markers for the HUD
     for (const t of B.parts) if (!t.dead && t.dnKind === 'bay' && dist3(t, player) < 1400) out.push({ o: t, cls: 'tgt', lbl: 'LAUNCH BAY ' });
   } else if (B.phase === 2) {
     if (!inside) { const w = dnWorld(DN.STERN - 20, 0, 0); out.push({ o: { ...w, scale: 6 }, cls: 'gate', lbl: 'HANGAR ' }); }
+    else if (dnInHangar(player)) { const w = dnWorld(DN_HGR.x1, 0, 0); out.push({ o: { ...w, scale: 6 }, cls: 'gate', lbl: 'CORRIDOR ' }); }
     else for (const t of B.parts) if (!t.dead && t.dnKind === 'pylon') out.push({ o: t, cls: 'boss', lbl: 'PYLON ' });
   } else if (B.phase === 3) out.push({ o: B.core, cls: 'boss', lbl: 'CORE ' });
   else { const w = dnWorld((DN_SHAFT.x0 + DN_SHAFT.x1) / 2, DN.TOP + 30, (DN_SHAFT.z0 + DN_SHAFT.z1) / 2); out.push({ o: { ...w, scale: 6 }, cls: 'gate', lbl: 'EXIT ' }); }
+  if (dnInHangar(player)) for (const t of B.parts) if (!t.dead && t.dnKind === 'walker') out.push({ o: t, cls: 'boss', lbl: 'WALKER ' });
   if (inside || B.phase === 1) for (const t of B.parts) if (!t.dead && t.dnKind === 'iturret' && dist3(t, player) < 200) out.push({ o: t, cls: 'tur', lbl: 'AA ', noArrow: true });
   if (!inside) for (const t of B.parts) if (!t.dead && t.dnKind === 'gun' && dist3(t, player) < 180) out.push({ o: t, cls: 'tur', lbl: 'AA ', noArrow: true });
   return out;
 }
 function carrierDist(o) { return dnMetal(o) ? -1 : 1; }
 function playerInHangar() { return dnInside(player); }
+// ---- flight deck: walkers stomp and shoot, parked fighters scramble ----
+function dnWalkerAt(o) {
+  if (!dnState || !dnState.walkers) return false;
+  const l = dnLocal(o);
+  for (const w of dnState.walkers) { if (Math.abs(l.x - w.wx) < 38 && Math.abs(l.z - w.wz) < 15 && Math.abs(l.y - w.foot) < 15) return true; }
+  return false;
+}
+function dnUpdateDeck(dt, act) {
+  const S = dnState, B = boss, H = DN_HGR, onDeck = dnInHangar(player);
+  for (const w of S.walkers || []) {
+    const ud = w.mesh.userData;
+    if (w.dead) {   // topples over and settles on the deck
+      w.mesh.rotation.x = lerp(w.mesh.rotation.x, 1.25 * (w.wz > 0 ? 1 : -1), Math.min(1, dt * 1.2));
+      w.mesh.position.y = lerp(w.mesh.position.y, DN.SY - H.hy + 16, Math.min(1, dt * 1.2));
+      if (!w.fell) { w.fell = true; for (let k = 0; k < 4; k++) explode(w.x + rand(-25, 25), w.y + rand(-10, 10), w.z + rand(-10, 10), 1.6); shake = Math.max(shake, 0.35); }
+      continue;
+    }
+    const spd = 7;
+    w.wx += w.dir * spd * dt; w.step += dt * spd / 9;
+    if (w.wx > H.x1 - 90 || w.wx < H.x0 + 90) { w.dir *= -1; w.wx = clamp(w.wx, H.x0 + 90, H.x1 - 90); }
+    w.mesh.rotation.y = lerp(w.mesh.rotation.y, w.dir > 0 ? 0 : Math.PI, Math.min(1, dt * 1.5));
+    ud.legs.forEach((leg, k) => leg.rotation.z = Math.sin(w.step + (k === 0 || k === 3 ? 0 : Math.PI)) * 0.38);
+    const bob = Math.abs(Math.sin(w.step)) * 2, pw = dnWorld(w.wx, w.foot + bob, w.wz);
+    w.mesh.position.set(pw.x, pw.y, pw.z); w.x = pw.x; w.y = pw.y; w.z = pw.z;
+    if (Math.floor(w.step / Math.PI) !== w.lastStomp) { w.lastStomp = Math.floor(w.step / Math.PI); if (onDeck && dist3(w, player) < 260) { Sound.tone(45, 0.25, 'sine', 0.12, 30); shake = Math.max(shake, 0.06); } }
+    // chin guns: 3-round bursts at the player while he is on the deck
+    w.fireCd -= dt;
+    if (act && onDeck && w.fireCd <= 0) {
+      const hw = dnWorld(w.wx + w.dir * 62, w.foot - 2, w.wz), d = dist3(hw, player);
+      if (d < 320 && dnSightClear(hw, player)) {
+        w.fireCd = rand(1.3, 2.2); w.burst = 3;
+      } else w.fireCd = 0.4;
+    }
+    if (w.burst > 0 && (w.burstT = (w.burstT || 0) - dt) <= 0) {
+      w.burst--; w.burstT = 0.12;
+      const hw = dnWorld(w.wx + w.dir * 62, w.foot - 2, w.wz), pf = fwdOf(player), lead = dist3(hw, player) / (botSpeed() + 30), ps = playerSpeed();
+      fire({ x: hw.x, y: hw.y, z: hw.z, a: 0, p: 0, src: 'WALKER CANNON', dmg: 1 }, !0, { x: player.x + pf[0] * ps * lead + rand(-3, 3), y: player.y + pf[1] * ps * lead + rand(-2, 2), z: player.z + pf[2] * ps * lead + rand(-3, 3) });
+      Sound.sfxEnemyShoot();
+    }
+  }
+  // scramble: parked fighters take off while you are on the deck
+  S.scrambleT = (S.scrambleT === undefined ? 3 : S.scrambleT) - dt;
+  if (act && onDeck && B.phase >= 2 && S.scrambleT <= 0 && bots.filter(b => !b.dead).length < 9) {
+    S.scrambleT = rand(4, 6.5);
+    const ready = B.parts.filter(t => t.dnKind === 'parked' && !t.dead);
+    if (ready.length) {
+      const t = ready[(Math.random() * ready.length) | 0];
+      t.dead = true; t.mesh.visible = false;
+      const e = spawnBot(Math.random() < 0.3 ? 'ace' : 'normal', { x: t.x, y: t.y + 12, z: t.z });
+      if (e) { e.x = t.x; e.y = t.y + 12; e.z = t.z; e.a = Math.atan2(-dnLocal(t).z, 0.001) ; e.p = 0.5; orientPlane(e, 0); for (let i = 0; i < 16; i++) addPart(t.x, t.y + 3, t.z, rand(-8, 8), rand(2, 8), rand(-8, 8), 0.6, 1.5, 0xffc27a, 1.3); Sound.sfxBoost(); toast('FIGHTER SCRAMBLING'); }
+    }
+  }
+}
+// ---- hunters: maze-aware pursuers (FALCON X leads them) that chase the player through the corridors ----
+const dnOpen = (i, j) => i >= 0 && i < DN_GW && j >= 0 && j < DN_GH && MAZE[j][i] !== '#';
+function dnRoute(from, to) {   // BFS over the grid: returns [next cell, steps] from `from` toward `to`
+  const key = (i, j) => j * DN_GW + i, k0 = key(from[0], from[1]), kt = key(to[0], to[1]), prev = new Int16Array(DN_GW * DN_GH).fill(-1), q = [k0];
+  prev[k0] = k0;
+  for (let h = 0; h < q.length; h++) {
+    const k = q[h];
+    if (k === kt) { let c = k, n = 0; while (prev[c] !== k0 && c !== k0) { c = prev[c]; n++; } return [[c % DN_GW, (c / DN_GW) | 0], n + 1]; }
+    const i = k % DN_GW, j = (k / DN_GW) | 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = i + dx, nj = j + dz; if (!dnOpen(ni, nj)) continue; const nk = key(ni, nj); if (prev[nk] !== -1) continue; prev[nk] = k; q.push(nk); }
+  }
+  return null;
+}
+const dnPlayerCell = () => { const l = dnLocal(player); return Math.abs(l.y) < DN.DECK ? dnCell(l.x, l.z) : null; };
+function dnSightClear(a, b) { for (let k = 1; k < 8; k++) { const u = k / 8; if (dnMetal({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, z: a.z + (b.z - a.z) * u })) return false; } return true; }
+function dnSpawnHunter(cell, elite) {
+  const [cx, cz] = dnCellC(cell[0], cell[1]), w = dnWorld(cx, 0, cz), e = spawnBot('ace', w);
+  if (!e) return null;
+  e.x = w.x; e.y = w.y; e.z = w.z;
+  if (elite) {
+    scene.remove(e.mesh); e.mesh = makePlane(0xe0283c, 0xf4f4f4, 'falcon', true); e.mesh.scale.multiplyScalar(1.15); scene.add(e.mesh);
+    banner('FALCON X', 'AN ACE IS HUNTING YOU IN THE CORRIDORS', '#ff2d55'); Sound.sfxSiren();
+  }
+  Object.assign(e, { dnHunt: true, elite, hp: elite ? 18 : 5, pts: elite ? 2500 : 400, fireCd: rand(1, 2), burst: 0, burstT: 0, trailT: 0, a: rand(0, 6.28), p: 0 });
+  orientPlane(e, 0);
+  for (let i = 0; i < 12; i++) addPart(e.x, e.y, e.z, rand(-6, 6), rand(-3, 6), rand(-6, 6), 0.6, 1.2, elite ? 0xff5a6a : 0xffc27a, 1);
+  return e;
+}
+function dnHunterStep(b, dt, hostile) {   // false = hand the bot back to the normal dogfight AI (it left the maze)
+  const l = dnLocal(b), bc = Math.abs(l.y) < DN.DECK ? dnCell(l.x, l.z) : null;
+  if (!bc || !dnState) { b.dnHunt = false; return false; }
+  const pc = dnPlayerCell();
+  if (!pc && bc[0] === 0) { b.dnHunt = false; b.a = Math.PI; return false; }   // the player is outside: leave by the hangar and keep chasing
+  const goal = pc || DN_MOUTH[0], r = dnRoute(bc, goal), pl = dnLocal(player);
+  let tx, ty, tz, spd = (b.elite ? 1.02 : 0.86) * Math.max(botSpeed() * 1.15, cruiseSpeed());
+  if (pc && (!r || r[1] <= 1)) { tx = pl.x; tz = pl.z; ty = clamp(pl.y, -DN.DECK + 8, DN.DECK - 8); }
+  else {
+    const n = r ? r[0] : bc, c = dnCellC(n[0], n[1]); tx = c[0]; tz = c[1]; ty = clamp(pl.y, -16, 16);
+    if (r && MAZE[n[1]][n[0]] === 'D' && dnDoorOpenness(n[0] + ',' + n[1]) < 0.75) spd *= 0.1;   // wait for the blast door
+    if (r && r[1] > 5) spd *= 1.25;   // catch up when far behind
+  }
+  const dx = tx - l.x, dy = ty - l.y, dz = tz - l.z, dl = Math.hypot(dx, dy, dz) || 1, step = Math.min(dl, spd * dt);
+  b.x += dx / dl * step; b.y += dy / dl * step; b.z += dz / dl * step;
+  const want = Math.atan2(dz, dx), turn = wrapA(want - b.a);
+  b.a = wrapA(b.a + clamp(turn, -dt * 6, dt * 6)); b.p = lerp(b.p, Math.asin(clamp(dy / dl, -1, 1)), Math.min(1, dt * 5)); b.roll = lerp(b.roll || 0, clamp(turn * 1.4, -1.1, 1.1), Math.min(1, dt * 6));
+  // guns: short bursts down the corridor when it has a clear line
+  b.fireCd -= dt;
+  const d = dist3(b, player);
+  if (hostile && player.alive && state === 'playing' && !playerHidden()) {
+    if (b.burst > 0 && (b.burstT -= dt) <= 0) {
+      b.burst--; b.burstT = 0.09;
+      const pf = fwdOf(player), ps = playerSpeed(), lead = d / (botSpeed() + 30);
+      fire({ ...b, guns: 2, airframe: b.elite ? 'falcon' : undefined }, !0, { x: player.x + pf[0] * ps * lead, y: player.y + pf[1] * ps * lead, z: player.z + pf[2] * ps * lead }); Sound.sfxEnemyShoot(b);
+    } else if (b.fireCd <= 0 && d < (b.elite ? 110 : 80) && d > 6) {
+      const f = fwdOf(b), dot = ((player.x - b.x) * f[0] + (player.y - b.y) * f[1] + (player.z - b.z) * f[2]) / d;
+      if (dot > 0.9 && dnSightClear(b, player)) { b.burst = b.elite ? 4 : 2; b.burstT = 0; b.fireCd = b.elite ? rand(1.1, 1.6) : rand(1.8, 2.6); }
+    }
+  }
+  if ((b.trailT -= dt) <= 0) { const f = fwdOf(b); b.trailT = 0.05; addPart(b.x - f[0] * 3, b.y - f[1] * 3, b.z - f[2] * 3, 0, 0, 0, 0.5, b.elite ? 0.5 : 0.35, b.elite ? 0xff3b55 : 0xffffff, 0.6); }
+  return true;
+}
+function dnUpdateHunters(dt, act) {   // spawns: FALCON X once you are inside (and again ~35s after it goes down), plus drones from the corridors
+  const S = dnState, B = boss, pc = dnPlayerCell();
+  S.eliteCd = Math.max(0, (S.eliteCd || 0) - dt); S.huntT = (S.huntT === undefined ? 4 : S.huntT) - dt;
+  if (act && B.phase >= 2 && !pc && dnInHangar(player) && S.eliteCd <= 0 && !bots.some(b => !b.dead && b.elite)) { const e = dnSpawnHunter(DN_MOUTH[0], true); if (e) e.a = Math.PI; }
+  if (!act || B.phase < 2 || !pc) return;
+  const hunters = bots.filter(b => !b.dead && b.dnHunt), elite = bots.some(b => !b.dead && b.elite);
+  if (S.hadElite && !elite) S.eliteCd = 30;
+  S.hadElite = elite;
+  const far = cells => cells.map(c => [c, dnRoute(pc, c)]).filter(([, r]) => r && r[1] >= 5 && r[1] <= 14);
+  if (!elite && S.eliteCd <= 0) {
+    const H = []; for (let j = 0; j < DN_GH; j++) for (let i = 0; i < DN_GW; i++) if (MAZE[j][i] === 'H' || MAZE[j][i] === 'R') H.push([i, j]);
+    const opts = far(H), pick = opts.length ? opts[(Math.random() * opts.length) | 0][0] : [24, 1];
+    dnSpawnHunter(pick, true);
+  }
+  const cap = B.phase >= 3 ? 5 : 4;
+  if (S.huntT <= 0 && hunters.length < cap) {
+    S.huntT = B.phase >= 3 ? rand(4, 6) : rand(6, 9);
+    const cells = []; for (let j = 0; j < DN_GH; j++) for (let i = 0; i < DN_GW; i++) if (MAZE[j][i] === '.' || MAZE[j][i] === 'H') cells.push([i, j]);
+    const opts = far(cells.sort(() => Math.random() - 0.5).slice(0, 40));
+    if (opts.length) { dnSpawnHunter(opts[0][0], false); toast('HUNTER IN THE CORRIDORS'); }
+  }
+}
 const dnCoreLockable = t => !t.inner || (dnInside(player) && (!t.core || (boss && boss.phase === 3 && dnInHall(player))));
 
 // ================= v8: stage terrain obstacles — the player AND enemies collide with them =================
@@ -7070,7 +7263,7 @@ const lapK = () => 1 + .5 * lapN(),
 function waveBonus(pts, sub) {
   pts = Math.round(pts * lapK()), killPts += pts, popup(player.x, player.y + 4, player.z, sub ? sub + " +" + pts : "+" + pts, !0, !0)
 }
-const keepBot = b => b.bomber || b.squad,
+const keepBot = b => b.bomber || b.squad || b.dnHunt,
   WAVES = {
     dogfight: {
       name: "DOGFIGHT",
