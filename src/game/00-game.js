@@ -2006,7 +2006,12 @@ const saveGarage = () => Store.set("garage", JSON.stringify(garage)),
   tierOf = p => clamp((p.tierCost == null ? 1000 : p.tierCost) / 1400, 0, 1),
   planeTier = () => tierOf(planeNow()),
   tierGrade = t => t < .15 ? "C" : t < .45 ? "B" : t < .7 ? "A" : t < .95 ? "S" : "S+",
-  lockRangeOf = p => Math.round(150 + 100 * tierOf(p)),
+  // gun range per airframe (x the old ~100m); open arenas (the Leviathan, space, the serpent) stretch it further
+  GUN_RANGE = { classic: 1.3, swift: 1.15, brick: 1.25, twin: 1.2, falcon: 1.6, lancer: 1.6, seraph: 1.5, spectre: 1.8, halo: 1.5, orb: 1.4, mantis: 1.35, mothership: 1.5, prism: 1.7, viper: 1.75, anvil: 1.55 },
+  bigMapK = () => dnArena || isSpace() || boss && boss.serpent ? 1.35 : 1,
+  gunRangeK = () => (GUN_RANGE[garage.plane] || 1.3) * bigMapK(),
+  gunSpeed = () => (playerSpeed() + 58) * Math.sqrt(gunRangeK()),
+  lockRangeOf = p => Math.round((150 + 100 * tierOf(p)) * bigMapK()),
   lockRingOf = p => .26 + .14 * tierOf(p),
   boostSecsOf = p => 1 / (.3 * (1 - .35 * tierOf(p))),
   paintNow = () => PAINTS.find(p => p.id === garage.paint) || PAINTS[0],
@@ -2191,7 +2196,7 @@ function gunSide(guns, g) {
 
 function fire(from, isEnemy, aimAt) {
   if (bullets.length >= MAXB) return;
-  const spd = isEnemy ? botSpeed() + 30 : playerSpeed() + 58;
+  const spd = isEnemy ? botSpeed() + 30 : gunSpeed();
   let [dx, dy, dz] = fwdOf(from);
   if (!isEnemy && stormTime > 0) { stormHeat = Math.min(1, stormHeat + .035); const sp = .012 + .07 * stormHeat; dx += rand(-sp, sp), dy += rand(-sp, sp) * .6, dz += rand(-sp, sp); }
   if (aimAt) {
@@ -2216,7 +2221,7 @@ function fire(from, isEnemy, aimAt) {
       vx: dx * spd,
       vy: dy * spd,
       vz: dz * spd,
-      life: isEnemy ? 1.9 : 1.1,
+      life: isEnemy ? 1.9 : 1.1 * Math.sqrt(gunRangeK()),
       enemy: isEnemy,
       src: isEnemy ? srcName(from) : null,
       dmg: isEnemy ? from.dmg || 1 : void 0,
@@ -3428,7 +3433,7 @@ function updateAimUI() {
       t._lx = t.x, t._ly = t.y, t._lz = t.z, t._lt = now;
     }
     if (best && state === "playing") {
-      const tt = isBeamPlane() ? 0 : bd / (playerSpeed() + 58), q = toScreen(best.x + (best._vx || 0) * tt, best.y + (best._vy || 0) * tt, best.z + (best._vz || 0) * tt);
+      const tt = isBeamPlane() ? 0 : bd / gunSpeed(), q = toScreen(best.x + (best._vx || 0) * tt, best.y + (best._vy || 0) * tt, best.z + (best._vz || 0) * tt);
       q && (shown = !0, lp.style.transform = `translate(${q.x.toFixed(1)}px,${q.y.toFixed(1)}px)`, lp.classList.toggle("on", !!r && Math.hypot(q.x - r.x, q.y - r.y) < 22));
     }
     lp.hidden = !shown;
@@ -3994,7 +3999,7 @@ function fireRear(from, enemy, count, tag) {
   for (let i = 0; i < count && bullets.length < MAXB; i++) {
     const a = from.a + Math.PI + (i - (count - 1) / 2) * .11,
       p = -(from.p || 0),
-      v = enemy ? botSpeed() + 30 : playerSpeed() + 58,
+      v = enemy ? botSpeed() + 30 : gunSpeed(),
       dx = Math.cos(a) * Math.cos(p),
       dy = Math.sin(p),
       dz = Math.sin(a) * Math.cos(p);
@@ -4455,6 +4460,7 @@ function renderAircraftOffer() {
       ["ARMOR", armorOf(p, mod) + " \xB7 " + (HEARTS + armorOf(p, mod)) + " HITS"],
       ["GUNS", p.guns],
       ["MISSILES", p.missiles + Math.floor(garage.lv.ammo / 2)],
+      ["GUN RANGE", Math.round(100 * (GUN_RANGE[p.id] || 1.3)) + "m"],
       ["LOCK-ON", lockRangeOf(p) + "m \xB7 " + Math.round(lockRingOf(p) / .3 * 100) + "%"],
       ["LOCK SPEED", Math.round((.9 + .6 * tierOf(p)) * 100) + "%"],
       ["BOOST", boostSecsOf(p).toFixed(1) + " s"]
