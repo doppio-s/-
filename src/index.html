@@ -558,6 +558,7 @@ body.ck-analog #lockUI{font-family:Georgia,serif}
 #finalMastery{font-weight:800;letter-spacing:.04em;color:#ffd24a;min-height:1em}
 #finalMastery.up{animation:blink .5s steps(2) 6}
 #aircraftOffer .offerBuy{position:sticky;top:0;z-index:2;margin-bottom:10px}#aircraftOffer .offerNote{display:block;font-size:10px;color:#b2c9d3;margin:-4px 0 12px}
+#wallWarn{position:fixed;left:50%;top:28%;transform:translateX(-50%);z-index:5;pointer-events:none;text-align:center;font:900 24px system-ui,sans-serif;color:#ffd24a;text-shadow:0 2px 6px #000a;letter-spacing:.08em}#wallWarn.near{color:#ff3b3b;animation:wallBlink .3s steps(2) infinite}#wallWarn small{display:block;font-size:12px;letter-spacing:.16em}@keyframes wallBlink{50%{opacity:.35}}
 </style>
 <!-- THIRD-PARTY LICENSES
 Three.js r170
@@ -625,6 +626,7 @@ included in this distribution. Its service terms apply separately.
 <div class="bar"><em></em><u></u><i id="fltSpdBar" style="width:55%"></i></div>
 <div class="bar heat" id="fltHeatBar"><i id="fltHeat" style="width:0"></i></div>
 <div class="lb"><span>SHIFT BOOST</span><span>Z BRAKE</span></div></div>
+<div id="wallWarn" hidden>WALL <b id="wallDist">20</b>m<small>TURN &middot; BRAKE</small></div>
 <div id="stallWarn" hidden>STALL<small>NOSE DOWN &middot; BOOST</small></div>
 <div id="leadPip" hidden><i></i></div><div id="joy" hidden><i></i><b></b></div>
 <div id="thrBtns" class="hidden"><button id="btnBoost" aria-label="Boost">BOOST</button><button id="btnBrake" aria-label="Brake">BRAKE</button></div>

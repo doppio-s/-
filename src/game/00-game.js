@@ -5779,11 +5779,21 @@ function dnInstanced(geo, mat, list) {
   list.forEach((d, k) => { m4.compose(v.set(d[0], d[1], d[2]), q, s.set(d[3], d[4], d[5])); im.setMatrixAt(k, m4); });
   im.castShadow = false; im.receiveShadow = true; return im;
 }
+function dnPanelTex(base, seam, stripe, rx, ry) {   // bulkhead panels: seams, rivets and a light strip give the walls scale and depth
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.08)'; g.fillRect(i * 64 + 3, j * 64 + 3, 58, 58); }
+  g.strokeStyle = seam; g.lineWidth = 4; g.strokeRect(2, 2, 124, 124); g.beginPath(); g.moveTo(64, 0); g.lineTo(64, 128); g.moveTo(0, 64); g.lineTo(128, 64); g.stroke();
+  g.fillStyle = seam; for (const x of [10, 54, 74, 118]) for (const y of [10, 54, 74, 118]) g.fillRect(x - 2, y - 2, 4, 4);
+  if (stripe) { g.fillStyle = stripe; g.fillRect(0, 60, 128, 8); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
 function makeDreadnought() {
   const g = new THREE.Group(); g.position.set(DN.SX, DN.SY, DN.SZ);
   const hull = new THREE.MeshStandardMaterial({ color: 0x6b7482, metalness: 0.35, roughness: 0.6 });
   const under = new THREE.MeshStandardMaterial({ color: 0x3c4350, metalness: 0.3, roughness: 0.7 });
-  const wallM = new THREE.MeshStandardMaterial({ color: 0x4a5566, roughness: 0.75, emissive: 0x0e1626 });
+  const wallM = new THREE.MeshStandardMaterial({ color: 0xffffff, map: dnPanelTex('#566378', '#1b2332', '#7fd8ff', 1, 1), roughness: 0.75, emissive: 0x0e1626 });
   const glowB = new THREE.MeshBasicMaterial({ color: 0x7fd8ff }), glowY = new THREE.MeshBasicMaterial({ color: 0xffc04a }), glowR = new THREE.MeshBasicMaterial({ color: 0xff4040 });
   const W = [[DN.BOW, 0], [DN.STERN, DN.HW], [DN.STERN, -DN.HW]];
   const mazeX1 = DN.MX0 + DN.CELL * DN_GW, mazeZ0 = DN.MZ0, mazeZ1 = DN.MZ0 + DN.CELL * DN_GH;
@@ -5792,7 +5802,7 @@ function makeDreadnought() {
   g.add(dnSlab(W, [[[DN_SHAFT.x0, DN_SHAFT.z0], [DN_SHAFT.x1, DN_SHAFT.z0], [DN_SHAFT.x1, DN_SHAFT.z1], [DN_SHAFT.x0, DN_SHAFT.z1]], hRect], DN.DECK, DN.TOP, hull));
   g.add(dnSlab(W, [hRect], -DN.TOP, -DN.DECK, under));
   g.add(dnSlab(hRect, [], H.hy, DN.TOP, hull));   // flight-deck roof
-  g.add(dnSlab(hRect, [], -DN.TOP, -H.hy, new THREE.MeshStandardMaterial({ color: 0x39414d, roughness: 0.85, emissive: 0x0c1018 })));   // flight-deck floor
+  g.add(dnSlab(hRect, [], -DN.TOP, -H.hy, new THREE.MeshStandardMaterial({ color: 0xffffff, map: dnPanelTex('#3f4856', '#1a2029', null, 0.025, 0.025), roughness: 0.85, emissive: 0x0c1018 })));   // flight-deck floor
   g.add(dnSlab([[DN.BOW, 0], [DN.STERN, DN.HW], [DN.STERN, H.mw], [H.x0, H.mw], [H.x0, H.hz], [mazeX1, mazeZ1], [mazeX1, mazeZ0], [H.x0, -H.hz], [H.x0, -H.mw], [DN.STERN, -H.mw], [DN.STERN, -DN.HW]], [], -DN.DECK, DN.DECK, hull));
   // flight deck dressing: pillars, runway and ceiling lights
   for (const [px, pz] of DN_PILLARS) { part(G.box, wallM, 36, H.hy * 2, 36, px, 0, pz, g); part(G.box, glowB, 37, 3, 37, px, H.hy - 30, pz, g); part(G.box, glowB, 37, 3, 37, px, -H.hy + 30, pz, g); }
@@ -5810,6 +5820,11 @@ function makeDreadnought() {
   }
   for (const [i, j] of path) { const [x, z] = dnCellC(i, j); guide.push([x, -DN.DECK + 0.6, z, 6, 1, 6]); }
   g.add(dnInstanced(G.box, wallM, walls));
+  { const w = mazeX1 - DN.MX0, d = mazeZ1 - mazeZ0, cx = DN.MX0 + w / 2, cz = (mazeZ0 + mazeZ1) / 2;
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: 0xffffff, map: dnPanelTex('#3a4352', '#161c26', null, DN_GW, DN_GH), roughness: 0.9, emissive: 0x0a0e16 }));
+    fl.rotation.x = -Math.PI / 2; fl.position.set(cx, -DN.DECK + 0.3, cz); fl.receiveShadow = true; g.add(fl);
+    const ce = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: 0xffffff, map: dnPanelTex('#2c3442', '#11151d', null, DN_GW, DN_GH), roughness: 0.9, emissive: 0x080b12 }));
+    ce.rotation.x = Math.PI / 2; ce.position.set(cx, DN.DECK - 0.3, cz); g.add(ce); }
   g.add(dnInstanced(G.box, glowB, lights));
   g.add(dnInstanced(G.box, glowY, guide));
   // reactor hall: dark ring walls with glowing seams
@@ -6054,6 +6069,7 @@ function killCarrier() {   // player got out: the whole ship comes apart
 function dnCleanup() {
   if (boss && boss.carrier) { for (const t of [...boss.parts, boss.core]) if (t) scene.remove(t.mesh); }
   turrets = turrets.filter(t => !t.carrier);
+  dnState && dnState.fog0 && scene.fog.color.copy(dnState.fog0); $('wallWarn').hidden = true;
   dnState = null; dnSetArena(false); dnCamK = 1;
 }
 function updateCarrier(dt, hostile) {
@@ -6093,6 +6109,7 @@ function updateCarrier(dt, hostile) {
   }
   const inside = dnInside(player);
   dnCamK = lerp(dnCamK, dnInHangar(player) ? 0.85 : inside ? 0.55 : 1, Math.min(1, dt * 4));
+  dnDepthCues(dt, inside);
   // shots and enemies against the hull
   for (const b of bullets) if (b.life > 0 && dnMetal(b)) b.life = 0;
   for (const b of bots) if (!b.dead && !b.dnHunt && dnMetal(b)) crashBot(b, 'SMASHED!');
@@ -6168,6 +6185,24 @@ function dnMarks() {   // objective markers for the HUD
 }
 function carrierDist(o) { return dnMetal(o) ? -1 : 1; }
 function playerInHangar() { return dnInside(player); }
+// ---- depth cues inside: dark haze so far walls fade, and a warning when a wall is close ahead ----
+const DN_FOG_IN = new THREE.Color(0x0b1220);
+function dnDepthCues(dt, inside) {
+  const deck = dnInHangar(player), maze = inside && !deck, k = Math.min(1, dt * 3);
+  const near = maze ? 25 : deck ? 60 : 300, far = maze ? 360 : deck ? 1000 : 5200;
+  scene.fog.near = lerp(scene.fog.near, near, k); scene.fog.far = lerp(scene.fog.far, far, k);
+  if (!dnState.fog0) dnState.fog0 = scene.fog.color.clone();
+  scene.fog.color.lerp(inside ? DN_FOG_IN : dnState.fog0, k);
+  let hit = 0;
+  if (inside && state === 'playing' && player.alive) {
+    const f = fwdOf(player);
+    for (let d = 6; d <= 60; d += 3) { if (dnMetal({ x: player.x + f[0] * d, y: player.y + f[1] * d, z: player.z + f[2] * d })) { hit = d; break; } }
+  }
+  const el = $('wallWarn');
+  el.hidden = !hit; if (hit) { $('wallDist').textContent = hit; el.classList.toggle('near', hit < 25); }
+  dnState.wallBeep = (dnState.wallBeep || 0) - dt;
+  if (hit && hit < 30 && dnState.wallBeep <= 0) { dnState.wallBeep = hit / 90; Sound.tone(hit < 15 ? 1400 : 1000, 0.05, 'square', 0.04); }
+}
 // ---- flight deck: walkers stomp and shoot, parked fighters scramble ----
 function dnWalkerAt(o) {
   if (!dnState || !dnState.walkers) return false;
