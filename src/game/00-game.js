@@ -1574,9 +1574,14 @@ function ownsPart(slot, id) {
   return PARTS[slot]?.[0].id === id || garage.ownedParts?.[slot]?.includes(id)
 }
 
-function restoreParts(g) {
+function restoreParts(g) {   // components are gone: refund anything bought, fly on stock
   garage.ownedParts = {};
-  for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = [items[0].id, ...items.slice(1).filter(p => Array.isArray(g.ownedParts?.[slot]) && g.ownedParts[slot].includes(p.id)).map(p => p.id)], garage.loadout[slot] = items.some(p => p.id === g.loadout?.[slot]) && ownsPart(slot, g.loadout[slot]) ? g.loadout[slot] : items[0].id
+  let refund = 0;
+  for (const [slot, items] of Object.entries(PARTS)) {
+    if (!g.partsRefunded) for (const p of items.slice(1)) Array.isArray(g.ownedParts?.[slot]) && g.ownedParts[slot].includes(p.id) && (refund += p.cost || 0);
+    garage.ownedParts[slot] = [items[0].id], garage.loadout[slot] = items[0].id
+  }
+  garage.partsRefunded = !0, refund > 0 && (garage.coins += refund, setTimeout(() => (saveGarage(), toast("Components retired \xB7 +" + refund + " coins refunded")), 1500))
 }
 
 function partStats() {
@@ -1587,11 +1592,7 @@ function partStats() {
     damage: 1,
     hp: 0
   };
-  for (const slot of Object.keys(PARTS)) {
-    const p = PARTS[slot].find(p2 => p2.id === garage.loadout[slot]) || PARTS[slot][0];
-    for (const k of ["speed", "turn", "fire", "damage"]) s2[k] *= p[k] ?? 1;
-    s2.hp += p.hp || 0
-  }
+  // components were removed: every airframe flies on stock parts
   return s2
 }
 
@@ -1974,7 +1975,7 @@ const UPGRADES = [{
 function loadGarage(raw) {
   try {
     const g = JSON.parse(raw || "{}") || {};
-    restoreParts(g), Number.isFinite(g.coins) && g.coins >= 0 && (garage.coins = Math.floor(g.coins));
+    Number.isFinite(g.coins) && g.coins >= 0 && (garage.coins = Math.floor(g.coins)), restoreParts(g);
     for (const u of UPGRADES) {
       const v = g.lv && g.lv[u.id];
       Number.isInteger(v) && (garage.lv[u.id] = clamp(v, 0, u.max))
@@ -2003,7 +2004,7 @@ const saveGarage = () => Store.set("garage", JSON.stringify(garage)),
   maxFlr = () => 9 + 3 * run.flare,
   startMissiles = () => planeNow().missiles + Math.floor(garage.lv.ammo / 2),
   startFlares = () => 3 + Math.floor(garage.lv.ammo / 2),
-  turnRate = () => TURN_BASE * masteryBonus() * (1 + .1 * garage.lv.engine) * (1 + .1 * planeTier()) * planeNow().turn * partStats().turn * (1 + .1 * run.spd),
+  turnRate = () => TURN_BASE * planeNow().turn * Math.min(1.2, masteryBonus() * (1 + .04 * garage.lv.engine) * (1 + .05 * planeTier()) * (1 + .04 * run.spd)),   // bonuses stack to +20% at most
   fireGap = () => .15 / ((1 + .15 * garage.lv.guns) * planeNow().fire * partStats().fire * (1 + .2 * run.fire)),
   gunDmg = () => (1 + .5 * garage.lv.power) * partStats().damage * (1 + .25 * run.dmg),
   todayStr = () => {
@@ -2448,7 +2449,7 @@ function resumeGame() {
 }
 
 // hearts are fixed at 3; armor adds hits to them. player.hp counts every remaining hit
-const HEARTS = 3, TURN_BASE = 1.9;
+const HEARTS = 3, TURN_BASE = 1.75;
 // enemy attack power in hits (1 hit = 1 armor pip, or a heart with no armor left in it); anything not listed does 1
 const ENEMY_DMG = { missile: 3, flak: 2 };
 function heartCaps() { const A = maxHp() - HEARTS, b = Math.floor(A / HEARTS), x = A % HEARTS; return Array.from({ length: HEARTS }, (_, i) => 1 + b + (i < x ? 1 : 0)); }
@@ -4435,7 +4436,7 @@ function renderAircraftOffer() {
     values = [
       ["GRADE", tierGrade(tierOf(p))],
       ["CRUISE", Math.round(180 * (1 + .08 * tierOf(p)) * p.speed * mod.speed) + " km/h"],
-      ["HANDLING", Math.round(2.7 * (1 + .1 * garage.lv.engine) * (1 + .1 * tierOf(p)) * p.turn * mod.turn / 2.7 * 100) + "%"],
+      ["HANDLING", Math.round(p.turn * Math.min(1.2, (1 + .04 * garage.lv.engine) * (1 + .05 * tierOf(p))) * 100) + "%"],
       ["ARMOR", armorOf(p, mod) + " \xB7 " + (HEARTS + armorOf(p, mod)) + " HITS"],
       ["GUNS", p.guns],
       ["MISSILES", p.missiles + Math.floor(garage.lv.ammo / 2)],
