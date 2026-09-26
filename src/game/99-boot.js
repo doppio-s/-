@@ -8,7 +8,7 @@ garage.coins = Math.max(garage.coins, 99999), garage.planes = PLANES.map(p => p.
 for (const [slot, items] of Object.entries(PARTS)) garage.ownedParts[slot] = items.map(p => p.id);
 saveGarage();
 /*}TEST*/
-loadAudio(await Store.get("audio")), loadControls(await Store.get("controls")), loadCheckpoints(await Store.get("checkpoints")), clearCount = parseInt(await Store.get("clears"), 10) || 0, renderClears(), tutorialDone = await Store.get("tut10") === "1";
+loadAudio(await Store.get("audio")), loadControls(await Store.get("controls")), loadCheckpoints(await Store.get("checkpoints")), resumeCp = clamp(parseInt(await Store.get("resume"), 10) || 0, 0, 5), clearCount = parseInt(await Store.get("clears"), 10) || 0, renderClears(), renderCheckpoints(), tutorialDone = await Store.get("tut10") === "1";
 /*TEST{*/{ const hw = { '#fortress': 1, '#titan': 2, '#ace': 3, '#carrier': 4 }[location.hash]; hw && (window.__warpStage = hw); }/*}TEST*/
 applyLook(), updateMuteBtn(), lastAdTime = Date.now(), CG.loadingStop(), $("loading").classList.add("hidden"), toTitle();
 /*TEST{*/

@@ -2500,9 +2500,9 @@ function showOver() {
   }
   const earned = runCoins() - runCoinsGiven;
   earned > 0 && (runCoinsGiven += earned, garage.coins += earned, saveGarage()), $("finalScore").textContent = sc, $("finalTime").textContent = Math.floor(gameTime) + "s", $("finalKills").textContent = kills, $("finalBosses").textContent = stage + "-" + Math.max(1, wave), overShownAt = performance.now(), $("finalBest").textContent = best, $("finalCoins").textContent = runCoins(), $("finalCoinTotal").textContent = garage.coins, $("newBest").classList.toggle("hidden", !isNew), $("titanBadge").classList.toggle("hidden", !titanSlain), $("aceBadge").classList.toggle("hidden", !aceSlain), $("carrierBadge").classList.toggle("hidden", !carrierSunk), $("btnRevive").classList.add("hidden"), $("cpNote").classList.toggle("hidden", !runCheckpoint);
-  const retry = !runCleared && (runReached || runCheckpoint);
+  const retry = !runCleared && resumeCp;
   $("overTitle").textContent = runCleared ? "MISSION COMPLETE" : "SORTIE COMPLETE", $("over").classList.toggle("cleared", runCleared), $("clearBadge").classList.toggle("hidden", !runCleared), runCleared && ($("finalBosses").textContent = "\u2605 5");
-  $("btnRetryCp").classList.toggle("hidden", !retry), retry && ($("btnRetryCp").innerHTML = "&#8635; RETRY S" + retry + " " + CP_BOSS[retry]), $("btnRevive").innerHTML = '<span class="adTag">AD</span>CONTINUE', setOverButtons(!0), runCleared && $("btnRevive").classList.add("hidden"), showOnly("over"), runCleared ? Sound.sfxFanfare(!0) : Sound.sfxOver()
+  $("btnRetryCp").classList.add("hidden"), $("btnAgain").innerHTML = retry ? "&#8635; PLAY AGAIN \xB7 S" + retry + " " + CP_BOSS[retry] : "PLAY AGAIN", $("btnRevive").innerHTML = '<span class="adTag">AD</span>CONTINUE', setOverButtons(!0), runCleared && $("btnRevive").classList.add("hidden"), showOnly("over"), runCleared ? Sound.sfxFanfare(!0) : Sound.sfxOver()
 }
 
 function setOverButtons(on) {
@@ -3679,7 +3679,7 @@ function onBtn(id, fn) {
   }), $(id).addEventListener("pointerdown", e => e.stopPropagation())
 }
 onBtn("btnPlay", () => {
-  state === "title" && (Sound.sfxClick(), startRun())
+  state === "title" && (Sound.sfxClick(), startRun(resumeCp))
 }), onBtn("btnGarage", () => {
   state === "title" && (Sound.sfxClick(), openGarage())
 }), onBtn("btnDaily", () => {
@@ -3709,7 +3709,7 @@ onBtn("btnPlay", () => {
   busy = !1, state === "over" && (r === "ok" || r === "noads" ? (lastAdTime = Date.now(), revive()) : ($("btnRevive").innerHTML = '<span class="adTag">AD</span>CONTINUE', setOverButtons(!0), toast("No ad available right now. Try again later!")))
 }), onBtn("btnAgain", async () => {
   if (netGame) { state === "over" && (Sound.sfxClick(), netBackToLobby()); return }
-  state !== "over" || busy || (Sound.sfxClick(), !(CG.active && Date.now() - lastAdTime > 18e4 && (busy = !0, setOverButtons(!1), lastAdTime = Date.now(), await CG.ad("midgame"), busy = !1, state !== "over")) && startRun())
+  state !== "over" || busy || (Sound.sfxClick(), !(CG.active && Date.now() - lastAdTime > 18e4 && (busy = !0, setOverButtons(!1), lastAdTime = Date.now(), await CG.ad("midgame"), busy = !1, state !== "over")) && startRun(runCleared ? 0 : resumeCp))
 });
 let pendingPurchase = null;
 
@@ -6827,6 +6827,7 @@ function startBossFight() {
 // ---- game clear: all 5 stages done ----
 let runCleared = !1, clearCount = 0;
 function gameClear() {
+  resumeCp = 0, saveResume();
   runCleared = !0, dirPhase = "cleared", dirT = 6, player.invul = 999;
   for (const b of bots) b.dead || (b.dead = !0, explode(b.x, b.y, b.z, .8), removeBot(b));
   bots = [], bullets = bullets.filter(b => !b.enemy);
@@ -7657,7 +7658,9 @@ const CP_BOSS = {
     4: 0
   };
 let runCheckpoint = 0,
-  runReached = 0;
+  runReached = 0,
+  resumeCp = 0;   // the furthest checkpoint reached: PLAY / PLAY AGAIN start there until the game is cleared
+const saveResume = () => Store.set("resume", String(resumeCp));
 
 function loadCheckpoints(raw) {
   try {
@@ -7668,7 +7671,7 @@ function loadCheckpoints(raw) {
 const saveCheckpoints = () => Store.set("checkpoints", JSON.stringify(checkpoints));
 
 function reachCheckpoint(n) {
-  CP_BOSS[n] && (runReached = Math.max(runReached, n), checkpoints[n] < 1 && (checkpoints[n] = 1, saveCheckpoints()), toast("CHECKPOINT SAVED \xB7 STAGE " + n + " " + CP_BOSS[n]))
+  CP_BOSS[n] && (runReached = Math.max(runReached, n), !netGame && n > resumeCp && (resumeCp = n, saveResume()), checkpoints[n] < 1 && (checkpoints[n] = 1, saveCheckpoints()), toast("CHECKPOINT SAVED \xB7 STAGE " + n + " " + CP_BOSS[n]))
 }
 
 function clearCheckpoint(n) {
@@ -7676,6 +7679,7 @@ function clearCheckpoint(n) {
 }
 
 function renderCheckpoints() {
+  $("btnPlay").innerHTML = resumeCp && CP_BOSS[resumeCp] ? "PLAY <small>\xB7 S" + resumeCp + " " + CP_BOSS[resumeCp] + "</small>" : "PLAY";
   $("cpRow").classList.toggle("hidden", !Object.values(checkpoints).some(v => v > 0));
   for (const n of Object.keys(CP_BOSS)) {
     const b = $("btnCp-" + n);

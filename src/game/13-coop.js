@@ -390,7 +390,7 @@ function updateCoop(dt) {
       $("btnRevive").classList.add("hidden"); $("btnRetryCp").classList.add("hidden");
       $("btnAgain").textContent = "BACK TO LOBBY";
       netGame === "coop" && coop.seat === "front" && Net.send({ t: "over", gt: r1(gameTime), kp: killPts, kl: kills, stg: stage, wv: wave, cl: runCleared ? 1 : 0 });
-    } else $("btnAgain").textContent = "PLAY AGAIN";
+    }
   };
 }
 function netTick(dt) {
